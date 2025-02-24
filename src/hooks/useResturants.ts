@@ -1,17 +1,18 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Database } from '@/types/supabase'
+import { PostgrestError } from '@supabase/supabase-js'
 
 type Restaurant = Database['public']['Tables']['restaurants']['Row']
 type RestaurantInsert = Database['public']['Tables']['restaurants']['Insert']
-type RestaurantUpdate = Database['public']['Tables']['restaurants']['Update']
+// type RestaurantUpdate = Database['public']['Tables']['restaurants']['Update']
 
 export function useRestaurants() {
     const supabase = createClientComponentClient<Database>()
     const queryClient = useQueryClient()
 
     // Fetch all restaurants
-    const { data: restaurants, isLoading } = useQuery({
+    const { data: restaurants, isLoading, error: fetchError } = useQuery({
         queryKey: ['restaurants'],
         queryFn: async () => {
             const { data, error } = await supabase
@@ -25,7 +26,7 @@ export function useRestaurants() {
     })
 
     // Create restaurant
-    const createRestaurant = useMutation({
+    const createRestaurant = useMutation<Restaurant, PostgrestError, RestaurantInsert>({
         mutationFn: async (newRestaurant: RestaurantInsert) => {
             const { data, error } = await supabase
                 .from('restaurants')
@@ -33,7 +34,15 @@ export function useRestaurants() {
                 .select()
                 .single()
 
-            if (error) throw error
+            if (error) {
+                console.error('Creation Error:', error)
+                throw error
+            }
+
+            if (!data) {
+                throw new Error('No data returned from creation')
+            }
+
             return data
         },
         onSuccess: (newRestaurant) => {
@@ -43,51 +52,10 @@ export function useRestaurants() {
         }
     })
 
-    // Update restaurant
-    const updateRestaurant = useMutation({
-        mutationFn: async ({ id, ...updates }: RestaurantUpdate & { id: string }) => {
-            const { data, error } = await supabase
-                .from('restaurants')
-                .update(updates)
-                .eq('id', id)
-                .select()
-                .single()
-
-            if (error) throw error
-            return data
-        },
-        onSuccess: (updatedRestaurant) => {
-            queryClient.setQueryData<Restaurant[]>(['restaurants'], (old) =>
-                old?.map(restaurant =>
-                    restaurant.id === updatedRestaurant.id ? updatedRestaurant : restaurant
-                )
-            )
-        }
-    })
-
-    // Delete restaurant
-    const deleteRestaurant = useMutation({
-        mutationFn: async (id: string) => {
-            const { error } = await supabase
-                .from('restaurants')
-                .delete()
-                .eq('id', id)
-
-            if (error) throw error
-            return id
-        },
-        onSuccess: (deletedId) => {
-            queryClient.setQueryData<Restaurant[]>(['restaurants'], (old) =>
-                old?.filter(restaurant => restaurant.id !== deletedId)
-            )
-        }
-    })
-
     return {
         restaurants,
         isLoading,
-        createRestaurant,
-        updateRestaurant,
-        deleteRestaurant
+        fetchError,
+        createRestaurant
     }
 }

@@ -3,16 +3,19 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import type { Database } from '@/types/supabase'
+import { useUser } from '@supabase/auth-helpers-react'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter()
     const supabase = createClientComponentClient<Database>()
+    const user = useUser()
 
     const handleSignOut = async () => {
         await supabase.auth.signOut()
         router.push('/login')
     }
 
+    console.log('user', user)
     return (
         <div>
             <nav className="bg-white shadow">

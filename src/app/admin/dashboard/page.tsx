@@ -1,9 +1,9 @@
-import React from 'react'
+import RestaurantManagement from '@/components/resturants/CreateResturant'
 
 const AdminDashboard = () => {
-  return (
-    <div>AdminDashboard</div>
-  )
+    return (
+        <RestaurantManagement />
+    )
 }
 
 export default AdminDashboard
