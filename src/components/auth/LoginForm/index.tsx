@@ -1,0 +1,82 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Loader2 } from "lucide-react"
+import { useAuth } from '@/context/AuthContext'
+
+export default function LoginForm() {
+    const [email, setEmail] = useState('')
+    const [password, setPassword] = useState('')
+    const [error, setError] = useState<string | null>(null)
+    const router = useRouter()
+    const searchParams = useSearchParams()
+    const redirectPath = searchParams.get('redirect') || '/admin/dashboard'
+
+    const { signIn, isLoading } = useAuth()
+
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setError(null)
+
+        try {
+            await signIn(email, password)
+            router.push(redirectPath)
+        } catch (error) {
+            setError(error instanceof Error ? error.message : 'An error occurred during login')
+        }
+    }
+
+    return (
+        <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-2">
+                <Input
+                    id="email"
+                    type="email"
+                    placeholder="Email address"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={isLoading}
+                    autoComplete="email"
+                />
+            </div>
+            <div className="space-y-2">
+                <Input
+                    id="password"
+                    type="password"
+                    placeholder="Password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
+                    autoComplete="current-password"
+                />
+            </div>
+
+            {error && (
+                <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
+            )}
+
+            <Button
+                type="submit"
+                className="w-full"
+                disabled={isLoading}
+            >
+                {isLoading ? (
+                    <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Signing in...
+                    </>
+                ) : (
+                    'Sign in'
+                )}
+            </Button>
+        </form>
+    )
+}
