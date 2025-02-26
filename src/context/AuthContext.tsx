@@ -23,7 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null)
     const [session, setSession] = useState<Session | null>(null)
     const [profile, setProfile] = useState<Database['public']['Tables']['users']['Row'] | null>(null)
-    const [isLoading, setIsLoading] = useState<boolean>(true)
+    const [isLoading, setIsLoading] = useState<boolean>(false)
     const router = useRouter()
     const supabase = createClientComponentClient<Database>()
 
@@ -44,10 +44,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }
 
-    // Initialize auth state
     useEffect(() => {
         const initializeAuth = async () => {
             try {
+                setIsLoading(true)
                 const { data: { session: currentSession }, error } = await supabase.auth.getSession()
 
                 if (error) throw error

@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense } from 'react'
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card"
 import { Skeleton } from '@/components/ui/skeleton'
 import LoginForm from '@/components/auth/LoginForm'
 
@@ -17,15 +17,11 @@ export default function Login() {
                         <LoginForm />
                     </Suspense>
                 </CardContent>
-                <CardFooter className="flex justify-center text-sm text-muted-foreground">
-                    Protected food delivery admin portal
-                </CardFooter>
             </Card>
         </div>
     )
 }
 
-// Skeleton loader for the login form
 function LoginFormSkeleton() {
     return (
         <div className="space-y-4">
