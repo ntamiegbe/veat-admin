@@ -204,7 +204,7 @@ export function useMenuItems(filters?: MenuItemFilters) {
     // Upload menu item image
     const uploadImage = async (file: File, path: string) => {
         const { error } = await supabase.storage
-            .from('menu-images')
+            .from('menu-items-images')
             .upload(path, file, {
                 cacheControl: '3600',
                 upsert: true
