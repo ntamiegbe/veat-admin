@@ -1,33 +1,30 @@
-'use client'
-
 import { Suspense } from 'react'
-import { Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Skeleton } from '@/components/ui/skeleton'
 import LoginForm from '@/components/auth/LoginForm'
 
 export default function Login() {
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-            <Card className="w-full max-w-md">
-                <CardHeader>
-                    <CardTitle className="text-2xl text-center">VEat Admin</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <Suspense fallback={<LoginFormSkeleton />}>
-                        <LoginForm />
-                    </Suspense>
-                </CardContent>
-            </Card>
+        <div className="min-h-screen bg-gradient-to-br from-primary-50 via-background to-primary-50 dark:from-primary-950/20 dark:via-background dark:to-primary-950/20 flex items-center justify-center p-4">
+            <Suspense fallback={<LoginSkeleton />}>
+                <LoginForm />
+            </Suspense>
         </div>
     )
 }
 
-function LoginFormSkeleton() {
+function LoginSkeleton() {
     return (
-        <div className="space-y-4">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-        </div>
+        <Card className="w-full max-w-md p-8">
+            <div className="space-y-6">
+                <div className="space-y-2 text-center">
+                    <Skeleton className="h-8 w-32 mx-auto" />
+                    <Skeleton className="h-4 w-48 mx-auto" />
+                </div>
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+            </div>
+        </Card>
     )
 }
