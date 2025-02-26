@@ -243,8 +243,10 @@ export default function LocationsPage() {
                                     <div className="flex justify-between items-start">
                                         <CardTitle className="line-clamp-1">{location.name}</CardTitle>
                                         <div className="flex gap-1">
-                                            {location.is_campus && (
+                                            {location.is_campus ? (
                                                 <Badge>Campus</Badge>
+                                            ) : (
+                                                <Badge variant="secondary">Off-Campus</Badge>
                                             )}
                                             {!location.is_active && (
                                                 <Badge variant="secondary">Inactive</Badge>

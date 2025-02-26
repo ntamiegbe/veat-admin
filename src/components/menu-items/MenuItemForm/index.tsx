@@ -573,7 +573,7 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
                                                     <SelectValue placeholder="Select a category" />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="">No Category</SelectItem>
+                                                    <SelectItem value="none">No Category</SelectItem>
                                                     {categories?.map(category => (
                                                         <SelectItem key={category.id} value={category.id}>
                                                             {category.name}
