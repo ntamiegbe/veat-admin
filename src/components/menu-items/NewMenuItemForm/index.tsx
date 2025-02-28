@@ -3,9 +3,13 @@
 import { useSearchParams } from 'next/navigation'
 import MenuItemForm from '@/components/menu-items/MenuItemForm'
 
-export default function NewMenuItemForm() {
+interface NewMenuItemFormProps {
+    initialRestaurantId?: string
+}
+
+export default function NewMenuItemForm({ initialRestaurantId }: NewMenuItemFormProps) {
     const searchParams = useSearchParams()
-    const restaurantId = searchParams.get('restaurant') || undefined
+    const restaurantId = initialRestaurantId || searchParams?.get('restaurant') || undefined
 
     return <MenuItemForm restaurantId={restaurantId} />
 }

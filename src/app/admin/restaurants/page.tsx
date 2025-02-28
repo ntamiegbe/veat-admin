@@ -40,7 +40,6 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-// import { Checkbox } from '@/components/ui/checkbox'
 import {
     Dialog,
     DialogContent,
@@ -50,9 +49,6 @@ import {
     DialogFooter
 } from '@/components/ui/dialog'
 import { useRestaurants } from '@/services/useRestaurants'
-// import { Database } from '@/types/supabase'
-
-// type Restaurant = Database['public']['Tables']['restaurants']['Row']
 
 export default function RestaurantsPage() {
     const router = useRouter()

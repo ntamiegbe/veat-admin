@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
-import { useState} from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -63,11 +63,12 @@ type MenuItem = Database['public']['Tables']['menu_items']['Row'] & {
     category?: { id: string, name: string } | null
 }
 
-export default function MenuItemsPage() {
-    const router = useRouter()
-    const searchParams = useSearchParams()
-    const initialRestaurantId = searchParams.get('restaurant') || undefined
+interface MenuItemsListContentProps {
+    initialRestaurantId?: string
+}
 
+export default function MenuItemsListContent({ initialRestaurantId }: MenuItemsListContentProps) {
+    const router = useRouter()
     const [searchTerm, setSearchTerm] = useState('')
     const [isFilterOpen, setIsFilterOpen] = useState(false)
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)

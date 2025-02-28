@@ -1,13 +1,22 @@
 'use client'
 
 import { Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Skeleton } from '@/components/ui/skeleton'
-import NewMenuItemForm from '@/components/menu-items/NewMenuItemForm' 
+import NewMenuItemForm from '@/components/menu-items/NewMenuItemForm'
+
+// Client component to handle search params
+function NewMenuItemFormWrapper() {
+    const searchParams = useSearchParams()
+    const restaurantId = searchParams.get('restaurant') || undefined
+
+    return <NewMenuItemForm initialRestaurantId={restaurantId} />
+}
 
 export default function NewMenuItemPage() {
     return (
         <Suspense fallback={<MenuItemFormSkeleton />}>
-            <NewMenuItemForm />
+            <NewMenuItemFormWrapper />
         </Suspense>
     )
 }
