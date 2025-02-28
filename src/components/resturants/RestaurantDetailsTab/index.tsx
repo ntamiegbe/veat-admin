@@ -126,7 +126,6 @@ export default function RestaurantDetailsTab({ restaurant, menuItemCount = 0 }: 
                         <CardContent>
                             <div className="space-y-2">
                                 {restaurant.opening_hours &&
-                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                     Object.entries(restaurant.opening_hours as Record<string, any>).map(([day, hours]) => (
                                         <div key={day} className="flex justify-between">
                                             <span className="font-medium capitalize">{day}</span>

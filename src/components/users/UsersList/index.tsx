@@ -79,14 +79,6 @@ export default function UsersList({
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
     const { verifyPhone } = useUsers()
 
-    const handleViewUser = (id: string) => {
-        router.push(`/admin/users/${id}`)
-    }
-
-    const handleEditUser = (id: string) => {
-        router.push(`/admin/users/${id}/edit`)
-    }
-
     const handleDeleteUser = (id: string) => {
         // In a real app, you would implement delete functionality
         // For demo purposes, just show a toast
@@ -302,10 +294,10 @@ export default function UsersList({
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                <DropdownMenuItem onClick={() => handleViewUser(user.id)}>
+                                                <DropdownMenuItem onClick={() => router.push(`/admin/users/${user.id}`)}>
                                                     <Eye className="h-4 w-4 mr-2" /> View
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => handleEditUser(user.id)}>
+                                                <DropdownMenuItem onClick={() => router.push(`/admin/users/${user.id}/edit`)}>
                                                     <Edit className="h-4 w-4 mr-2" /> Edit
                                                 </DropdownMenuItem>
                                                 <DropdownMenuSeparator />
@@ -430,7 +422,7 @@ export default function UsersList({
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => handleViewUser(user.id)}
+                                    onClick={() => router.push(`/admin/users/${user.id}`)}
                                 >
                                     <Eye className="h-4 w-4 mr-1" /> View
                                 </Button>
@@ -438,7 +430,7 @@ export default function UsersList({
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => handleEditUser(user.id)}
+                                        onClick={() => router.push(`/admin/users/${user.id}/edit`)}
                                     >
                                         <Edit className="h-4 w-4" />
                                     </Button>
