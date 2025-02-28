@@ -2,6 +2,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Database } from '@/types/supabase'
 import { PostgrestError } from '@supabase/supabase-js'
+import { useStorage } from './useStorage'
 
 type MenuItem = Database['public']['Tables']['menu_items']['Row']
 type MenuItemInsert = Database['public']['Tables']['menu_items']['Insert']
@@ -22,6 +23,7 @@ type MenuItemFilters = {
 export function useMenuItems(filters?: MenuItemFilters) {
     const supabase = createClientComponentClient<Database>()
     const queryClient = useQueryClient()
+    const { uploadFile } = useStorage()
     const defaultFilters: MenuItemFilters = {
         searchTerm: '',
         restaurantId: undefined,
@@ -117,6 +119,11 @@ export function useMenuItems(filters?: MenuItemFilters) {
     // Create menu item
     const createMenuItem = useMutation<MenuItem, PostgrestError, MenuItemInsert>({
         mutationFn: async (newMenuItem: MenuItemInsert) => {
+            // First make sure we have the necessary fields
+            if (!newMenuItem.name || !newMenuItem.restaurant_id) {
+                throw new Error('Menu item name and restaurant are required')
+            }
+
             const { data, error } = await supabase
                 .from('menu_items')
                 .insert(newMenuItem)
@@ -201,23 +208,14 @@ export function useMenuItems(filters?: MenuItemFilters) {
         }
     })
 
-    // Upload menu item image
+    // Upload menu item image using our fixed storage service
     const uploadImage = async (file: File, path: string) => {
-        const { error } = await supabase.storage
-            .from('menu-images')
-            .upload(path, file, {
-                cacheControl: '3600',
-                upsert: true
-            })
-
-        if (error) throw error
-
-        // Get the public URL
-        const { data: publicUrlData } = supabase.storage
-            .from('menu-images')
-            .getPublicUrl(path)
-
-        return publicUrlData.publicUrl
+        try {
+            return await uploadFile(file, 'menu-images', path)
+        } catch (error) {
+            console.error('Error in uploadImage:', error)
+            throw error
+        }
     }
 
     return {

@@ -2,8 +2,8 @@ import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-// Routes that require authentication
-const protectedRoutes = [
+// Routes that require admin authentication
+const adminRoutes = [
     '/admin',
     '/admin/dashboard',
     '/admin/restaurants',
@@ -24,20 +24,26 @@ export async function middleware(req: NextRequest) {
     const pathname = req.nextUrl.pathname
 
     // Check if the route is protected and user is not authenticated
-    const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route))
+    const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route))
     const isAuthRoute = authRoutes.some(route => pathname === route)
 
-    if (isProtectedRoute && !session) {
+    // If user is not authenticated and trying to access admin routes
+    if (isAdminRoute && !session) {
         // Redirect to login if trying to access protected route while not authenticated
         const redirectUrl = new URL('/login', req.url)
         redirectUrl.searchParams.set('redirect', pathname)
         return NextResponse.redirect(redirectUrl)
     }
 
+    // If user is authenticated and trying to access auth routes (login/register)
     if (isAuthRoute && session) {
         // Redirect to dashboard if trying to access auth routes while already authenticated
         return NextResponse.redirect(new URL('/admin/dashboard', req.url))
     }
+
+    // For admin routes, we'll do basic session check here
+    // The detailed admin role check will be done in the useAdminAuth hook
+    // This is a performance optimization to avoid checking admin status on every request
 
     return res
 }

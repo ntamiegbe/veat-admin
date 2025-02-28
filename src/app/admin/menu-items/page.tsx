@@ -1,33 +1,75 @@
 'use client'
 
-import { Suspense } from 'react'
-import { Skeleton } from '@/components/ui/skeleton'
-import MenuItemsListContent from '@/components/menu-items/MenuItemsListContent' 
+import { useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
+import { Plus, BarChart } from 'lucide-react'
+import MenuItemsFilter, { MenuItemFilters } from '@/components/menu-items/MenuItemsFilter'
+import MenuItemsGrid from '@/components/menu-items/MenuItemsGrid'
+import MenuItemsDashboard from '@/components/menu-items/MenuItemsDashboard'
 
 export default function MenuItemsPage() {
-    return (
-        <Suspense fallback={<MenuItemsListSkeleton />}>
-            <MenuItemsListContent />
-        </Suspense>
-    )
-}
+    const router = useRouter()
+    const searchParams = useSearchParams()
+    const initialRestaurantId = searchParams.get('restaurant') || undefined
 
-function MenuItemsListSkeleton() {
+    // State for active tab
+    const [activeTab, setActiveTab] = useState<'grid' | 'dashboard'>('grid')
+
+    // State for filters
+    const [filters, setFilters] = useState<MenuItemFilters>({
+        searchTerm: '',
+        restaurantId: initialRestaurantId,
+        categoryId: undefined,
+        isAvailable: true,
+        isFeatured: undefined,
+        minPrice: undefined,
+        maxPrice: undefined,
+        sortBy: 'name',
+        sortOrder: 'asc'
+    })
+
+    // Handle filter changes
+    const handleFilterChange = (newFilters: MenuItemFilters) => {
+        setFilters(newFilters)
+    }
+
     return (
         <div className="space-y-6">
-            <div className="flex justify-between">
-                <Skeleton className="h-12 w-64" />
-                <Skeleton className="h-10 w-32" />
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Menu Items</h1>
+                    <p className="text-muted-foreground">
+                        Manage all menu items across restaurants
+                    </p>
+                </div>
+                <Button onClick={() => router.push('/admin/menu-items/new')} className="w-full sm:w-auto">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Menu Item
+                </Button>
             </div>
-            <div className="flex gap-4">
-                <Skeleton className="h-10 flex-1" />
-                <Skeleton className="h-10 w-32" />
-            </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[1, 2, 3, 4, 5, 6].map((i) => (
-                    <Skeleton key={i} className="h-64 w-full" />
-                ))}
-            </div>
+
+            <Tabs defaultValue="grid" value={activeTab} onValueChange={(value) => setActiveTab(value as 'grid' | 'dashboard')}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <TabsList>
+                        <TabsTrigger value="grid">Menu Items</TabsTrigger>
+                        <TabsTrigger value="dashboard" className="flex items-center gap-2">
+                            <BarChart className="h-4 w-4" />
+                            Dashboard
+                        </TabsTrigger>
+                    </TabsList>
+                </div>
+
+                <TabsContent value="grid" className="space-y-6">
+                    <MenuItemsFilter filters={filters} onFilterChange={handleFilterChange} />
+                    <MenuItemsGrid filters={filters} />
+                </TabsContent>
+
+                <TabsContent value="dashboard">
+                    <MenuItemsDashboard restaurantId={filters.restaurantId} />
+                </TabsContent>
+            </Tabs>
         </div>
     )
 }

@@ -1,12 +1,10 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  experimental: {
-    serverActions: {
-      bodySizeLimit: undefined,
-      allowedOrigins: undefined,
-    },
+module.exports = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'ecslnojuilswdjnyhlze.supabase.co',
+      }
+    ],
   },
-};
-
-export default nextConfig;
+}
