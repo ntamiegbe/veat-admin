@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { useAuth } from '@/services/useAuth'
+import { useAuth, useRequireRole } from '@/services/useAuth'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -21,8 +21,8 @@ export default function EditRestaurantPage() {
     const params = useParams()
     const router = useRouter()
     const restaurantId = params.id as string
-    const { userRestaurants, isLoading: isAuthLoading, requireRole, ownsRestaurant } = useAuth()
-    const { isLoading: isAuthChecking } = requireRole('restaurant_owner')
+    const { userRestaurants, isLoading: isAuthLoading, ownsRestaurant } = useAuth()
+    const { isLoading: isAuthChecking } = useRequireRole('restaurant_owner')
     const [isLoading, setIsLoading] = useState(true)
     const [isSaving, setIsSaving] = useState(false)
     const [formData, setFormData] = useState<RestaurantUpdate>({
