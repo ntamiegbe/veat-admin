@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, JSXElementConstructor, ReactElement, ReactNode, ReactPortal } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -246,7 +247,7 @@ export default function RestaurantForm({ restaurant, user }: RestaurantFormProps
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="none">Select a location</SelectItem>
-                                                {locations?.map(location => (
+                                                {locations?.map((location: { id: string; name: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; is_campus: any }) => (
                                                     <SelectItem key={location.id} value={location.id}>
                                                         {location.name} {location.is_campus ? '(Campus)' : ''}
                                                     </SelectItem>
