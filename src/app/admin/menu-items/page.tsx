@@ -5,7 +5,6 @@ import { useSearchParams } from 'next/navigation'
 import { Skeleton } from '@/components/ui/skeleton'
 import MenuItemsListContent from '@/components/menu-items/MenuItemsListContent'
 
-// Client component to handle search params
 function MenuItemsList() {
     const searchParams = useSearchParams()
     const restaurantId = searchParams.get('restaurant') || undefined
@@ -13,7 +12,6 @@ function MenuItemsList() {
     return <MenuItemsListContent initialRestaurantId={restaurantId} />
 }
 
-// Main page component with Suspense boundary
 export default function MenuItemsPage() {
     return (
         <Suspense fallback={<MenuItemsListSkeleton />}>
