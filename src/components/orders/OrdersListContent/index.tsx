@@ -351,7 +351,7 @@ export default function OrdersListContent({
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="all">All locations</SelectItem>
-                                                {locations?.map((location) => (
+                                                {locations?.map((location: any) => (
                                                     <SelectItem key={location.id} value={location.id}>
                                                         {location.name}
                                                     </SelectItem>
@@ -478,7 +478,7 @@ export default function OrdersListContent({
                     animate="visible"
                     className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
                 >
-                    {orders?.map((order) => (
+                    {orders?.map((order: any) => (
                         <motion.div key={order.id} variants={itemVariants}>
                             <Card className="overflow-hidden h-full flex flex-col">
                                 <CardHeader className="pb-2">
