@@ -269,11 +269,16 @@ export function useUsers(filters?: UserFilters) {
         })
 
         const typeCounts = await Promise.all(typePromises)
+        const typeCountsObj = Object.fromEntries(typeCounts.map(item => [item.type, item.count]))
 
+        // Return in the format expected by UserStats component
         return {
-            totalUsers: totalUsers || 0,
-            verifiedUsers: verifiedUsers || 0,
-            typeCounts: Object.fromEntries(typeCounts.map(item => [item.type, item.count]))
+            total: totalUsers || 0,
+            verified: verifiedUsers || 0,
+            customers: typeCountsObj['user'] || 0,
+            restaurantOwners: typeCountsObj['restaurant_owner'] || 0,
+            riders: typeCountsObj['delivery_rider'] || 0,
+            admins: typeCountsObj['admin'] || 0
         }
     }
 

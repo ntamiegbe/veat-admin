@@ -5,7 +5,6 @@ import {
   Map,
   LayoutDashboard,
   Utensils,
-  Bike
 } from 'lucide-react'
 
 export const menuItems = [
@@ -53,15 +52,6 @@ export const menuItems = [
         { title: 'Restaurant Owners', path: '/admin/users/restaurant-owners' },
         { title: 'Delivery Riders', path: '/admin/users/delivery-riders' },
         { title: 'Customers', path: '/admin/users/customers' },
-      ]
-    },
-    {
-      title: 'Delivery Riders',
-      icon: <Bike size={20} />,
-      path: '/admin/riders',
-      submenu: [
-        { title: 'All Riders', path: '/admin/riders' },
-        { title: 'Active Deliveries', path: '/admin/riders/active' },
       ]
     },
     {

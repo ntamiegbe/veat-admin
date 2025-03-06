@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { motion} from 'framer-motion'
+import { motion } from 'framer-motion'
 import { useLocations } from '@/services/useLocations'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -58,7 +58,7 @@ export default function LocationsPage() {
         deleteLocation,
     } = useLocations()
 
-    const filteredLocations = locations?.filter(location =>
+    const filteredLocations = locations?.filter((location: { name: string }) =>
         location.name.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
@@ -236,9 +236,9 @@ export default function LocationsPage() {
                     animate="visible"
                     className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6"
                 >
-                    {filteredLocations?.map((location) => (
+                    {filteredLocations?.map((location: Location) => (
                         <motion.div key={location.id} variants={itemVariants}>
-                            <Card>
+                            <Card className="cursor-pointer transition-all hover:shadow-md" onClick={() => router.push(`/admin/locations/${location.id}`)}>
                                 <CardHeader className="pb-2">
                                     <div className="flex justify-between items-start">
                                         <CardTitle className="line-clamp-1">{location.name}</CardTitle>
@@ -265,10 +265,16 @@ export default function LocationsPage() {
                                         </div>
                                     )}
                                     <div className="flex gap-2 mt-4">
-                                        <Button variant="outline" size="sm" onClick={() => handleOpenForm(location)}>
+                                        <Button variant="outline" size="sm" onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleOpenForm(location);
+                                        }}>
                                             <Edit className="h-4 w-4 mr-1" /> Edit
                                         </Button>
-                                        <Button variant="destructive" size="sm" onClick={() => handleConfirmDelete(location)}>
+                                        <Button variant="destructive" size="sm" onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleConfirmDelete(location);
+                                        }}>
                                             <Trash2 className="h-4 w-4 mr-1" /> Delete
                                         </Button>
                                     </div>

@@ -217,6 +217,29 @@ export function useLocations(filters?: LocationFilters) {
         }
     })
 
+    // Delete location
+    const deleteLocation = useMutation<string, PostgrestError, string>({
+        mutationFn: async (id: string) => {
+            const { error } = await supabase
+                .from('locations')
+                .delete()
+                .eq('id', id)
+
+            if (error) throw error
+            return id
+        },
+        onSuccess: (id) => {
+            // Invalidate the specific location query
+            queryClient.invalidateQueries({ queryKey: ['location', id] })
+
+            // Remove the location from the locations list cache if it exists
+            queryClient.setQueriesData({ queryKey: ['locations'] }, (oldData: any) => {
+                if (!oldData) return oldData
+                return oldData.filter((location: Location) => location.id !== id)
+            })
+        }
+    })
+
     return {
         locations,
         isLoading,
@@ -225,6 +248,7 @@ export function useLocations(filters?: LocationFilters) {
         createLocation,
         updateLocation,
         toggleLocationActive,
+        deleteLocation,
         refetch
     }
 }

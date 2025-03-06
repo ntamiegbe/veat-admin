@@ -1,102 +1,98 @@
-import { useState, useEffect } from 'react'
-import { StatCard } from '@/components/dashboard/StatCard'
+import { Card, CardContent } from '@/components/ui/card'
 import {
-    Users,
-    UserCheck,
-    ChefHat,
+    User,
+    ShoppingBag,
+    Building2,
     Bike,
-    ShieldCheck
+    UserCog,
+    CheckCircle
 } from 'lucide-react'
-import { useUsers } from '@/services/useUsers'
-import { useQueryClient } from '@tanstack/react-query'
 
-export default function UserStats() {
-    const queryClient = useQueryClient()
-    const [stats, setStats] = useState<{
-        totalUsers: number;
-        verifiedUsers: number;
-        typeCounts: Record<string, number>;
-    } | null>(null)
-    const [isLoading, setIsLoading] = useState(true)
-
-    const { getUserStats } = useUsers()
-
-    useEffect(() => {
-        const fetchStats = async () => {
-            try {
-                setIsLoading(true)
-
-                const data = await getUserStats()
-
-                // Cache the stats
-                queryClient.setQueryData(['userStats'], data)
-
-                setStats(data)
-            } catch (error) {
-                console.error('Error fetching user stats:', error)
-            } finally {
-                setIsLoading(false)
-            }
-        }
-
-        fetchStats()
-    }, []) // Remove dependencies to prevent multiple calls
-
-    // Safe value extraction with fallback
-    const getStatValue = (key: string) => {
-        if (!stats?.typeCounts) return 0
-        return stats.typeCounts[key] || 0
+interface UserStatsProps {
+    stats: {
+        total: number
+        customers: number
+        restaurantOwners: number
+        riders: number
+        admins: number
+        verified: number
     }
+}
 
+export default function UserStats({ stats }: UserStatsProps) {
     return (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
-            <StatCard
-                title="Total Users"
-                value={stats?.totalUsers?.toLocaleString() || "0"}
-                description="All registered users"
-                icon={<Users size={18} />}
-                index={0}
-                loading={isLoading}
-            />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <Card>
+                <CardContent className="p-4 flex items-center justify-between">
+                    <div>
+                        <p className="text-sm font-medium text-muted-foreground">Total Users</p>
+                        <p className="text-2xl font-bold">{stats.total}</p>
+                    </div>
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <User className="h-5 w-5 text-primary" />
+                    </div>
+                </CardContent>
+            </Card>
 
-            <StatCard
-                title="Verified Users"
-                value={stats?.verifiedUsers?.toLocaleString() || "0"}
-                description="Users with verified phones"
-                icon={<UserCheck size={18} />}
-                change={stats && stats.totalUsers > 0
-                    ? (stats.verifiedUsers / stats.totalUsers * 100)
-                    : undefined}
-                index={1}
-                loading={isLoading}
-            />
+            <Card>
+                <CardContent className="p-4 flex items-center justify-between">
+                    <div>
+                        <p className="text-sm font-medium text-muted-foreground">Customers</p>
+                        <p className="text-2xl font-bold">{stats.customers}</p>
+                    </div>
+                    <div className="h-10 w-10 rounded-full bg-blue-500/10 flex items-center justify-center">
+                        <ShoppingBag className="h-5 w-5 text-blue-500" />
+                    </div>
+                </CardContent>
+            </Card>
 
-            <StatCard
-                title="Restaurant Owners"
-                value={getStatValue('restaurant_owner').toLocaleString()}
-                description="Restaurant managers"
-                icon={<ChefHat size={18} />}
-                index={2}
-                loading={isLoading}
-            />
+            <Card>
+                <CardContent className="p-4 flex items-center justify-between">
+                    <div>
+                        <p className="text-sm font-medium text-muted-foreground">Restaurant Owners</p>
+                        <p className="text-2xl font-bold">{stats.restaurantOwners}</p>
+                    </div>
+                    <div className="h-10 w-10 rounded-full bg-amber-500/10 flex items-center justify-center">
+                        <Building2 className="h-5 w-5 text-amber-500" />
+                    </div>
+                </CardContent>
+            </Card>
 
-            <StatCard
-                title="Delivery Riders"
-                value={getStatValue('delivery_rider').toLocaleString()}
-                description="Active delivery personnel"
-                icon={<Bike size={18} />}
-                index={3}
-                loading={isLoading}
-            />
+            <Card>
+                <CardContent className="p-4 flex items-center justify-between">
+                    <div>
+                        <p className="text-sm font-medium text-muted-foreground">Delivery Riders</p>
+                        <p className="text-2xl font-bold">{stats.riders}</p>
+                    </div>
+                    <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                        <Bike className="h-5 w-5 text-green-500" />
+                    </div>
+                </CardContent>
+            </Card>
 
-            <StatCard
-                title="Customers"
-                value={getStatValue('user').toLocaleString()}
-                description="Regular app users"
-                icon={<ShieldCheck size={18} />}
-                index={4}
-                loading={isLoading}
-            />
+            <Card>
+                <CardContent className="p-4 flex items-center justify-between">
+                    <div>
+                        <p className="text-sm font-medium text-muted-foreground">Admins</p>
+                        <p className="text-2xl font-bold">{stats.admins}</p>
+                    </div>
+                    <div className="h-10 w-10 rounded-full bg-purple-500/10 flex items-center justify-center">
+                        <UserCog className="h-5 w-5 text-purple-500" />
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardContent className="p-4 flex items-center justify-between">
+                    <div>
+                        <p className="text-sm font-medium text-muted-foreground">Verified Users</p>
+                        <p className="text-2xl font-bold">{stats.verified}</p>
+                    </div>
+                    <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                        <CheckCircle className="h-5 w-5 text-green-500" />
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     )
 }
