@@ -112,15 +112,15 @@ const ImageWithFallback = ({ src, alt, ...props }: any) => {
     // If Next.js Image fails, try regular img tag
     return (
         <div className="relative h-full w-full">
-            <img
+            <Image
                 src={imgSrc}
                 alt={alt}
-                className={`${props.className || ''} h-full w-full object-cover`}
+                fill
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                className={`${props.className || ''} object-cover`}
                 onError={(e) => {
-                    console.error(`Regular img tag failed to load: ${imgSrc}`, e);
-                    setRegularImgFailed(true);
+                    console.error(`Image failed to load: ${imgSrc}`, e);
                 }}
-                loading="lazy"
             />
         </div>
     );
