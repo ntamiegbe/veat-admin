@@ -6,11 +6,66 @@ import type { Database } from '@/types/supabase'
 
 type User = Database['public']['Tables']['users']['Row']
 
+// Custom hook for authentication check
+export function useRequireAuth() {
+    const supabase = createClientComponentClient<Database>()
+    const router = useRouter()
+    const [isLoading, setIsLoading] = useState(true)
+
+    useEffect(() => {
+        const checkAuth = async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (!session) {
+                router.push('/login')
+            } else {
+                setIsLoading(false)
+            }
+        }
+
+        checkAuth()
+    }, []) // Remove router from dependencies
+
+    return { isLoading }
+}
+
+// Custom hook for role-based authorization
+export function useRequireRole(role: 'user' | 'restaurant_owner' | 'delivery_rider' | 'admin') {
+    const supabase = createClientComponentClient<Database>()
+    const router = useRouter()
+    const [isLoading, setIsLoading] = useState(true)
+
+    useEffect(() => {
+        const checkRole = async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+
+            if (!session) {
+                router.push('/login')
+                return
+            }
+
+            const { data: user, error } = await supabase
+                .from('users')
+                .select('user_type')
+                .eq('id', session.user.id)
+                .single()
+
+            if (error || user?.user_type !== role) {
+                router.push('/unauthorized')
+            } else {
+                setIsLoading(false)
+            }
+        }
+
+        checkRole()
+    }, [role]) // Remove router from dependencies, keep role
+
+    return { isLoading }
+}
+
 export function useAuth() {
     const supabase = createClientComponentClient<Database>()
     const router = useRouter()
     const queryClient = useQueryClient()
-    const [isLoading, setIsLoading] = useState(true)
 
     // Get current user with profile data
     const { data: currentUser, isLoading: isUserLoading } = useQuery({
@@ -74,54 +129,6 @@ export function useAuth() {
         router.push('/login')
     }
 
-    // Redirect if not authenticated
-    const requireAuth = () => {
-        useEffect(() => {
-            const checkAuth = async () => {
-                const { data: { session } } = await supabase.auth.getSession()
-                if (!session) {
-                    router.push('/login')
-                } else {
-                    setIsLoading(false)
-                }
-            }
-
-            checkAuth()
-        }, [router])
-
-        return { isLoading }
-    }
-
-    // Redirect if not authorized for a role
-    const requireRole = (role: 'user' | 'restaurant_owner' | 'delivery_rider' | 'admin') => {
-        useEffect(() => {
-            const checkRole = async () => {
-                const { data: { session } } = await supabase.auth.getSession()
-
-                if (!session) {
-                    router.push('/login')
-                    return
-                }
-
-                const { data: user, error } = await supabase
-                    .from('users')
-                    .select('user_type')
-                    .eq('id', session.user.id)
-                    .single()
-
-                if (error || user?.user_type !== role) {
-                    router.push('/unauthorized')
-                } else {
-                    setIsLoading(false)
-                }
-            }
-
-            checkRole()
-        }, [router, role])
-
-        return { isLoading }
-    }
-
     return {
         currentUser,
         userRestaurants,
@@ -130,7 +137,7 @@ export function useAuth() {
         hasRole,
         ownsRestaurant,
         signOut,
-        requireAuth,
-        requireRole
+        requireAuth: useRequireAuth,
+        requireRole: useRequireRole
     }
 } 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useAuth } from '@/services/useAuth'
+import { useAuth, useRequireRole } from '@/services/useAuth'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -25,8 +25,8 @@ type Restaurant = Database['public']['Tables']['restaurants']['Row']
 
 export default function RestaurantOwnerDashboard() {
     const router = useRouter()
-    const { userRestaurants, isLoading, requireRole } = useAuth()
-    const { isLoading: isAuthChecking } = requireRole('restaurant_owner')
+    const { userRestaurants, isLoading } = useAuth()
+    const { isLoading: isAuthChecking } = useRequireRole('restaurant_owner')
     const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null)
 
     // Set the first restaurant as selected when data loads

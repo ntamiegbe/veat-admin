@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useAuth } from '@/services/useAuth'
+import { useAuth, useRequireAuth } from '@/services/useAuth'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Toaster } from '@/components/ui/sonner'
@@ -59,8 +59,8 @@ const menuItems = [
 export default function RestaurantOwnerLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname()
     const router = useRouter()
-    const { currentUser, isAuthenticated, hasRole, signOut, requireAuth } = useAuth()
-    const { isLoading } = requireAuth()
+    const { currentUser, isAuthenticated, hasRole, signOut } = useAuth()
+    const { isLoading } = useRequireAuth()
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
     const [userInitials, setUserInitials] = useState('RO')
 
@@ -177,8 +177,8 @@ export default function RestaurantOwnerLayout({ children }: { children: React.Re
                                         key={idx}
                                         href={item.path}
                                         className={`flex items-center py-2 px-4 rounded-md transition-colors ${isActive
-                                                ? 'bg-primary text-primary-foreground'
-                                                : 'hover:bg-secondary text-foreground'
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'hover:bg-secondary text-foreground'
                                             }`}
                                     >
                                         <span className="mr-3">{item.icon}</span>
@@ -233,8 +233,8 @@ export default function RestaurantOwnerLayout({ children }: { children: React.Re
                                         key={idx}
                                         href={item.path}
                                         className={`flex items-center py-2 px-4 rounded-md transition-colors ${isActive
-                                                ? 'bg-primary text-primary-foreground'
-                                                : 'hover:bg-secondary text-foreground'
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'hover:bg-secondary text-foreground'
                                             }`}
                                     >
                                         <span className="mr-3">{item.icon}</span>
