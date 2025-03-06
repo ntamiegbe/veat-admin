@@ -3,35 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Badge } from '@/components/ui/badge'
-import { toast } from 'sonner'
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select'
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-    DialogFooter,
-} from '@/components/ui/dialog'
 import {
     Tabs,
     TabsContent,
@@ -39,40 +12,18 @@ import {
     TabsTrigger,
 } from '@/components/ui/tabs'
 import {
-    User,
     Search,
     Filter,
     RefreshCcw,
     Plus,
-    MoreHorizontal,
-    AlertCircle,
-    CheckCircle,
-    XCircle,
-    Mail,
-    Phone,
-    MapPin,
-    Calendar,
-    Building2,
-    Bike,
-    ShoppingBag,
-    UserCog,
     Grid,
     List
 } from 'lucide-react'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import type { Database } from '@/types/supabase'
 import { useUsers } from '@/services/useUsers'
-import { useLocations } from '@/services/useLocations'
 import UsersList from '@/components/users/UsersList'
 import UserStats from '@/components/users/UserStats'
 import UserFilters from '@/components/users/UserFilters'
-import { format } from 'date-fns'
 import { UserFilterValues } from '@/components/users/UserFilters'
-
-type UserData = Database['public']['Tables']['users']['Row'] & {
-    default_delivery_location?: { id: string, name: string, is_campus: boolean | null } | null
-}
 
 export default function UsersListContent() {
     // Log when the component renders
@@ -83,8 +34,6 @@ export default function UsersListContent() {
     const router = useRouter()
     const [searchTerm, setSearchTerm] = useState('')
     const [isFilterOpen, setIsFilterOpen] = useState(false)
-    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-    const [selectedUser, setSelectedUser] = useState<UserData | null>(null)
     const [viewMode, setViewMode] = useState<'table' | 'grid'>('table')
     const [activeTab, setActiveTab] = useState<string>('all')
     const [filters, setFilters] = useState<{
@@ -188,16 +137,6 @@ export default function UsersListContent() {
         refetch()
     }
 
-    const containerVariants = {
-        hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: {
-                staggerChildren: 0.1
-            }
-        }
-    }
-
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -290,7 +229,7 @@ export default function UsersListContent() {
 
                 <TabsContent value="all" className="mt-0">
                     <UsersList
-                        users={users}
+                        users={users ?? null}
                         isLoading={isLoading}
                         error={fetchError}
                         viewMode={viewMode}
@@ -302,7 +241,7 @@ export default function UsersListContent() {
 
                 <TabsContent value="customers" className="mt-0">
                     <UsersList
-                        users={users}
+                        users={users ?? null}
                         isLoading={isLoading}
                         error={fetchError}
                         viewMode={viewMode}
@@ -315,7 +254,7 @@ export default function UsersListContent() {
 
                 <TabsContent value="restaurant-owners" className="mt-0">
                     <UsersList
-                        users={users}
+                        users={users ?? null}
                         isLoading={isLoading}
                         error={fetchError}
                         viewMode={viewMode}
@@ -328,7 +267,7 @@ export default function UsersListContent() {
 
                 <TabsContent value="riders" className="mt-0">
                     <UsersList
-                        users={users}
+                        users={users ?? null}
                         isLoading={isLoading}
                         error={fetchError}
                         viewMode={viewMode}
@@ -341,7 +280,7 @@ export default function UsersListContent() {
 
                 <TabsContent value="admins" className="mt-0">
                     <UsersList
-                        users={users}
+                        users={users ?? null}
                         isLoading={isLoading}
                         error={fetchError}
                         viewMode={viewMode}

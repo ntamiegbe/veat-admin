@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
@@ -21,7 +21,6 @@ import {
     Trash2,
     AlertCircle,
     ShoppingBag,
-    Star,
     Building2,
     Bike,
     UserCog
@@ -38,9 +37,7 @@ import {
     DialogFooter
 } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useUsers } from '@/services/useUsers'
 import { format } from 'date-fns'
-import { Separator } from '@/components/ui/separator'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 type User = Database['public']['Tables']['users']['Row'] & {
@@ -58,7 +55,7 @@ function InvalidUserId({ userId }: { userId: string }) {
                     <AlertCircle className="h-5 w-5" />
                     <h3 className="font-semibold">Invalid User ID</h3>
                 </div>
-                <p className="mt-2">The user ID "{userId}" is not valid.</p>
+                <p className="mt-2">The user ID &quot;{userId}&quot; is not valid.</p>
                 <Button
                     variant="outline"
                     onClick={() => router.push('/admin/users')}
@@ -323,7 +320,7 @@ function UserDetails({ userId }: { userId: string }) {
                         <AlertCircle className="h-10 w-10 text-muted-foreground mb-4" />
                         <h3 className="text-lg font-medium">User not found</h3>
                         <p className="text-muted-foreground mt-2">
-                            The user you're looking for could not be found.
+                            The user you&apos;re looking for could not be found.
                         </p>
                         <Button
                             onClick={() => router.push('/admin/users')}
@@ -540,7 +537,7 @@ function UserDetails({ userId }: { userId: string }) {
                                                         <TableCell>{order.restaurant?.name || 'Unknown'}</TableCell>
                                                         <TableCell>{formatPrice(order.total_amount)}</TableCell>
                                                         <TableCell>
-                                                            <Badge variant={getOrderStatusBadgeVariant(order.order_status)}>
+                                                            <Badge variant={getOrderStatusBadgeVariant(order.order_status) as "default" | "destructive" | "outline" | "secondary"}>
                                                                 {getOrderStatusDisplayName(order.order_status)}
                                                             </Badge>
                                                         </TableCell>
@@ -597,7 +594,7 @@ function UserDetails({ userId }: { userId: string }) {
                                                         </TableCell>
                                                         <TableCell>{formatPrice(reward.reward_value)}</TableCell>
                                                         <TableCell>
-                                                            <Badge variant={reward.is_used ? 'secondary' : 'success'}>
+                                                            <Badge variant={reward.is_used ? 'secondary' : 'default'}>
                                                                 {reward.is_used ? 'Used' : 'Available'}
                                                             </Badge>
                                                         </TableCell>

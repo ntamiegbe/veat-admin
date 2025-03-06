@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Database } from '@/types/supabase'
@@ -340,7 +341,7 @@ export function useOrders(filters?: OrderFilters) {
     const removeOrderItem = useMutation<void, PostgrestError, string>({
         mutationFn: async (id: string) => {
             // First get the order item to know which order to invalidate
-            const { data: orderItem, error: fetchError } = await supabase
+            const { error: fetchError } = await supabase
                 .from('order_items')
                 .select('order_id')
                 .eq('id', id)

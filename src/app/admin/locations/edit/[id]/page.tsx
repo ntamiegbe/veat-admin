@@ -14,7 +14,6 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import type { Database } from '@/types/supabase'
 
-type Location = Database['public']['Tables']['locations']['Row']
 type LocationUpdate = Database['public']['Tables']['locations']['Update']
 
 export default function EditLocationPage() {

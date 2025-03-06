@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useLocations } from '@/services/useLocations'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -32,7 +32,6 @@ import type { Database } from '@/types/supabase'
 import { useQuery } from '@tanstack/react-query'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
-type Location = Database['public']['Tables']['locations']['Row']
 
 export default function LocationDetailPage() {
     const params = useParams()
@@ -43,7 +42,6 @@ export default function LocationDetailPage() {
 
     const {
         getLocationById,
-        updateLocation,
         deleteLocation,
         toggleLocationActive
     } = useLocations()

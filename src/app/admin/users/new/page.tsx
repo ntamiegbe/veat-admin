@@ -1,11 +1,9 @@
 'use client'
 
-import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, User } from 'lucide-react'
-import { toast } from 'sonner'
 
 export default function CreateUserPage() {
     const router = useRouter()
