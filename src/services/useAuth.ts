@@ -6,7 +6,6 @@ import type { Database } from '@/types/supabase'
 
 type User = Database['public']['Tables']['users']['Row']
 
-// Custom hook for authentication check
 export function useRequireAuth() {
     const supabase = createClientComponentClient<Database>()
     const router = useRouter()
@@ -28,7 +27,6 @@ export function useRequireAuth() {
     return { isLoading }
 }
 
-// Custom hook for role-based authorization
 export function useRequireRole(role: 'user' | 'restaurant_owner' | 'delivery_rider' | 'admin') {
     const supabase = createClientComponentClient<Database>()
     const router = useRouter()

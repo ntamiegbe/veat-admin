@@ -268,7 +268,7 @@ export function useOrders(filters?: OrderFilters) {
     })
 
     // Assign rider to order
-    const assignRider = useMutation<Order, PostgrestError, { id: string, riderId: string }>({
+    const assignRider = useMutation<Order, PostgrestError, { id: string, riderId: string | null }>({
         mutationFn: async ({ id, riderId }) => {
             const { data, error } = await supabase
                 .from('orders')
