@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Database } from '@/types/supabase'
@@ -97,23 +98,54 @@ export function useMenuItems(filters?: MenuItemFilters) {
             return data
         },
         staleTime: 1000 * 60 * 5, // 5 minutes
-        refetchOnWindowFocus: false
+        refetchOnWindowFocus: false,
+        refetchOnMount: false,
+        refetchOnReconnect: false,
+        retry: 1,
+        gcTime: 1000 * 60 * 10, // 10 minutes
     })
 
-    // Get a menu item by ID
+    // Get a menu item by ID with localStorage caching
     const getMenuItemById = async (id: string) => {
+        // Try to get from localStorage first
+        const cachedData = typeof window !== 'undefined' ? localStorage.getItem(`menu-item-${id}`) : null;
+        if (cachedData) {
+            try {
+                const { data, timestamp } = JSON.parse(cachedData);
+                const isStale = Date.now() - timestamp > 5 * 60 * 1000; // 5 minutes
+
+                if (!isStale) {
+                    console.log(`Using cached data for menu item ${id}`);
+                    return data;
+                }
+            } catch (e) {
+                console.error('Error parsing cached menu item data:', e);
+                // Continue to fetch from API if parsing fails
+            }
+        }
+
+        console.log(`Fetching menu item ${id} from API`);
         const { data, error } = await supabase
             .from('menu_items')
             .select(`
-        *,
-        restaurant:restaurant_id(id, name),
-        category:category_id(id, name)
-      `)
+                *,
+                restaurant:restaurant_id(id, name),
+                category:category_id(id, name)
+            `)
             .eq('id', id)
-            .single()
+            .single();
 
-        if (error) throw error
-        return data
+        if (error) throw error;
+
+        // Save to localStorage with timestamp
+        if (typeof window !== 'undefined') {
+            localStorage.setItem(`menu-item-${id}`, JSON.stringify({
+                data,
+                timestamp: Date.now()
+            }));
+        }
+
+        return data;
     }
 
     // Create menu item
@@ -167,8 +199,15 @@ export function useMenuItems(filters?: MenuItemFilters) {
             if (error) throw error
             return id
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['menu-items'] })
+        onSuccess: (id) => {
+            // Remove the specific menu item from the cache
+            queryClient.removeQueries({ queryKey: ['menu-item', id] })
+
+            // Update the menu items list cache to remove the deleted item
+            queryClient.setQueriesData({ queryKey: ['menu-items'] }, (oldData: any) => {
+                if (!oldData) return oldData
+                return oldData.filter((item: MenuItem) => item.id !== id)
+            })
         }
     })
 
@@ -185,8 +224,20 @@ export function useMenuItems(filters?: MenuItemFilters) {
             if (error) throw error
             return data
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['menu-items'] })
+        onSuccess: (data) => {
+            // Only invalidate the specific menu item query
+            queryClient.invalidateQueries({ queryKey: ['menu-item', data.id] })
+
+            // Update the menu item in the cache without refetching
+            queryClient.setQueryData(['menu-item', data.id], data)
+
+            // Update the menu item in the menu-items list cache if it exists
+            queryClient.setQueriesData({ queryKey: ['menu-items'] }, (oldData: any) => {
+                if (!oldData) return oldData
+                return oldData.map((item: MenuItem) =>
+                    item.id === data.id ? { ...item, ...data } : item
+                )
+            })
         }
     })
 
@@ -203,8 +254,20 @@ export function useMenuItems(filters?: MenuItemFilters) {
             if (error) throw error
             return data
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['menu-items'] })
+        onSuccess: (data) => {
+            // Only invalidate the specific menu item query
+            queryClient.invalidateQueries({ queryKey: ['menu-item', data.id] })
+
+            // Update the menu item in the cache without refetching
+            queryClient.setQueryData(['menu-item', data.id], data)
+
+            // Update the menu item in the menu-items list cache if it exists
+            queryClient.setQueriesData({ queryKey: ['menu-items'] }, (oldData: any) => {
+                if (!oldData) return oldData
+                return oldData.map((item: MenuItem) =>
+                    item.id === data.id ? { ...item, ...data } : item
+                )
+            })
         }
     })
 

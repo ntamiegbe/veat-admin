@@ -3,7 +3,7 @@
 // src/components/menu-items/MenuItemForm.tsx
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, JSXElementConstructor, Key, ReactElement, ReactNode, ReactPortal } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -81,6 +81,24 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
         queryFn: async () => {
             if (!selectedRestaurantId) return []
 
+            // Try to get from localStorage first
+            const cacheKey = `menu-categories-${selectedRestaurantId}`;
+            const cachedData = localStorage.getItem(cacheKey);
+            if (cachedData) {
+                try {
+                    const { data, timestamp } = JSON.parse(cachedData);
+                    const isStale = Date.now() - timestamp > 5 * 60 * 1000; // 5 minutes
+
+                    if (!isStale) {
+                        console.log(`Using cached categories for restaurant ${selectedRestaurantId}`);
+                        return data;
+                    }
+                } catch (e) {
+                    console.error('Error parsing cached categories data:', e);
+                }
+            }
+
+            console.log(`Fetching categories for restaurant ${selectedRestaurantId}`);
             const { data, error } = await supabase
                 .from('menu_categories')
                 .select('*')
@@ -88,9 +106,22 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
                 .order('display_order', { ascending: true })
 
             if (error) throw error
+
+            // Save to localStorage with timestamp
+            localStorage.setItem(cacheKey, JSON.stringify({
+                data,
+                timestamp: Date.now()
+            }));
+
             return data
         },
-        enabled: !!selectedRestaurantId
+        enabled: !!selectedRestaurantId,
+        staleTime: 1000 * 60 * 5, // 5 minutes
+        refetchOnWindowFocus: false,
+        refetchOnMount: false,
+        refetchOnReconnect: false,
+        retry: false,
+        gcTime: 1000 * 60 * 10, // 10 minutes
     })
 
     // Restaurant operations
@@ -125,10 +156,16 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
     const [imageFile, setImageFile] = useState<File | null>(null)
     const [imagePreview, setImagePreview] = useState<string | null>(null)
     const [isUploading, setIsUploading] = useState(false)
+    const initialLoadRef = useRef(false)
 
-    // Fill form with menu item data if in edit mode
+    // Fill form with menu item data if in edit mode - only run once
     useEffect(() => {
+        // Only run this effect once on mount
+        if (initialLoadRef.current) return;
+        initialLoadRef.current = true;
+
         if (isEditMode && menuItem) {
+            console.log('Initializing form with menu item data');
             setFormData({
                 name: menuItem.name,
                 description: menuItem.description,
@@ -147,7 +184,7 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
                 setImagePreview(menuItem.image_url)
             }
         }
-    }, [isEditMode, menuItem])
+    }, []); // Empty dependency array to run only once
 
     // Handle form input changes
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -374,21 +411,53 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
             // Upload image if new file is selected
             let finalImageUrl = formData.image_url
 
-            if (imageFile) {
-                setIsUploading(true)
-                const fileName = `${Date.now()}-${imageFile.name.replace(/\s+/g, '-')}`
-                const filePath = `menu-items/${formData.restaurant_id}/${fileName}`
+            // Check if restaurant has changed and we need to move the image
+            const restaurantChanged = isEditMode && menuItem && menuItem.restaurant_id !== formData.restaurant_id;
+            const needsImageMove = restaurantChanged && formData.image_url && !imageFile;
 
-                try {
-                    finalImageUrl = await uploadImage(imageFile, filePath)
-                } catch (error) {
-                    console.error('Image upload error:', error)
-                    toast.error('Failed to upload image')
-                    setIsUploading(false)
-                    return
-                } finally {
-                    setIsUploading(false)
+            if (imageFile || needsImageMove) {
+                setIsUploading(true);
+
+                // If we're moving an existing image to a new restaurant folder
+                if (needsImageMove && formData.image_url) {
+                    try {
+                        // Extract the filename from the existing URL
+                        const urlParts = formData.image_url.split('/');
+                        const fileName = urlParts[urlParts.length - 1];
+
+                        // Create a new path in the new restaurant's folder
+                        const filePath = `menu-items/${formData.restaurant_id}/${fileName}`;
+
+                        // We need to fetch the image and re-upload it to the new location
+                        const response = await fetch(formData.image_url);
+                        const blob = await response.blob();
+                        const file = new File([blob], fileName, { type: blob.type });
+
+                        console.log(`Moving image to new restaurant folder: ${filePath}`);
+                        finalImageUrl = await uploadImage(file, filePath);
+                    } catch (error) {
+                        console.error('Image move error:', error);
+                        toast.error('Failed to move image to new restaurant folder');
+                        setIsUploading(false);
+                        return;
+                    }
                 }
+                // Regular new image upload
+                else if (imageFile) {
+                    const fileName = `${Date.now()}-${imageFile.name.replace(/\s+/g, '_')}`;
+                    const filePath = `menu-items/${formData.restaurant_id}/${fileName}`;
+
+                    try {
+                        finalImageUrl = await uploadImage(imageFile, filePath);
+                    } catch (error) {
+                        console.error('Image upload error:', error);
+                        toast.error('Failed to upload image');
+                        setIsUploading(false);
+                        return;
+                    }
+                }
+
+                setIsUploading(false);
             }
 
             // Prepare data for save
@@ -535,7 +604,7 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
                                             <Select
                                                 value={formData.restaurant_id || ''}
                                                 onValueChange={handleRestaurantChange}
-                                                disabled={isPending || isEditMode} // Disable in edit mode
+                                                disabled={isPending}
                                             >
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Select a restaurant" />
@@ -552,7 +621,7 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
                                     </div>
                                     {isEditMode && (
                                         <p className="text-xs text-muted-foreground mt-1">
-                                            Restaurant cannot be changed after creation
+                                            You can now change the restaurant for this menu item
                                         </p>
                                     )}
                                 </div>
@@ -574,7 +643,7 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="none">No Category</SelectItem>
-                                                    {categories?.map(category => (
+                                                    {categories?.map((category: { id: string; name: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined }) => (
                                                         <SelectItem key={category.id} value={category.id}>
                                                             {category.name}
                                                         </SelectItem>

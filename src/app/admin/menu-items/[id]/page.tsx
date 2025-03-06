@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
@@ -49,32 +49,62 @@ export default function MenuItemDetailsPage() {
     const menuItemId = params.id as string
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
     const supabase = createClientComponentClient<Database>()
+    const [localMenuItem, setLocalMenuItem] = useState<MenuItem | null>(null)
+    const [isLoading, setIsLoading] = useState(true)
+    const [error, setError] = useState<Error | null>(null)
 
-    // Fetch menu item with related data
-    const {
-        data: menuItem,
-        isLoading,
-        error,
-        refetch
-    } = useQuery({
-        queryKey: ['menu-item', menuItemId],
-        queryFn: async () => {
+    // Custom fetch function with localStorage caching
+    const fetchMenuItem = useCallback(async () => {
+        try {
+            setIsLoading(true)
+
+            // Try to get from localStorage first
+            const cachedData = localStorage.getItem(`menu-item-${menuItemId}`)
+            if (cachedData) {
+                const { data, timestamp } = JSON.parse(cachedData)
+                const isStale = Date.now() - timestamp > 5 * 60 * 1000 // 5 minutes
+
+                if (!isStale) {
+                    console.log('Using cached menu item data')
+                    setLocalMenuItem(data)
+                    setIsLoading(false)
+                    return
+                }
+            }
+
+            // Fetch from API if no cache or cache is stale
+            console.log('Fetching menu item from API')
             const { data, error } = await supabase
                 .from('menu_items')
                 .select(`
-          *,
-          restaurant:restaurant_id(id, name),
-          category:category_id(id, name)
-        `)
+                    *,
+                    restaurant:restaurant_id(id, name),
+                    category:category_id(id, name)
+                `)
                 .eq('id', menuItemId)
                 .single()
 
             if (error) throw error
-            return data
-        },
-        staleTime: 1000 * 60 * 5, // 5 minutes
-        refetchOnWindowFocus: false,
-    })
+
+            // Save to localStorage with timestamp
+            localStorage.setItem(`menu-item-${menuItemId}`, JSON.stringify({
+                data,
+                timestamp: Date.now()
+            }))
+
+            setLocalMenuItem(data)
+        } catch (err) {
+            console.error('Error fetching menu item:', err)
+            setError(err instanceof Error ? err : new Error('Failed to fetch menu item'))
+        } finally {
+            setIsLoading(false)
+        }
+    }, [menuItemId, supabase])
+
+    // Fetch data on mount
+    useEffect(() => {
+        fetchMenuItem()
+    }, [fetchMenuItem])
 
     const {
         deleteMenuItem,
@@ -83,11 +113,15 @@ export default function MenuItemDetailsPage() {
     } = useMenuItems()
 
     const handleDelete = async () => {
-        if (!menuItem) return
+        if (!localMenuItem) return
 
         try {
-            await deleteMenuItem.mutateAsync(menuItem.id)
+            await deleteMenuItem.mutateAsync(localMenuItem.id)
             toast.success('Menu item deleted successfully')
+
+            // Remove from localStorage
+            localStorage.removeItem(`menu-item-${menuItemId}`)
+
             router.push('/admin/menu-items')
         } catch (error) {
             toast.error('Failed to delete menu item')
@@ -98,16 +132,24 @@ export default function MenuItemDetailsPage() {
     }
 
     const handleToggleAvailability = async () => {
-        if (!menuItem) return
+        if (!localMenuItem) return
 
         try {
-            await toggleAvailability.mutateAsync({
-                id: menuItem.id,
-                isAvailable: !menuItem.is_available
+            const updatedItem = await toggleAvailability.mutateAsync({
+                id: localMenuItem.id,
+                isAvailable: !localMenuItem.is_available
             })
 
-            toast.success(`Menu item ${!menuItem.is_available ? 'enabled' : 'disabled'} successfully`)
-            refetch()
+            // Update local state
+            setLocalMenuItem(prev => prev ? { ...prev, is_available: !prev.is_available } : null)
+
+            // Update localStorage
+            localStorage.setItem(`menu-item-${menuItemId}`, JSON.stringify({
+                data: { ...localMenuItem, is_available: !localMenuItem.is_available },
+                timestamp: Date.now()
+            }))
+
+            toast.success(`Menu item ${!localMenuItem.is_available ? 'enabled' : 'disabled'} successfully`)
         } catch (error) {
             toast.error('Failed to update availability')
             console.error(error)
@@ -115,16 +157,24 @@ export default function MenuItemDetailsPage() {
     }
 
     const handleToggleFeatured = async () => {
-        if (!menuItem) return
+        if (!localMenuItem) return
 
         try {
-            await toggleFeatured.mutateAsync({
-                id: menuItem.id,
-                isFeatured: !menuItem.is_featured
+            const updatedItem = await toggleFeatured.mutateAsync({
+                id: localMenuItem.id,
+                isFeatured: !localMenuItem.is_featured
             })
 
-            toast.success(`Menu item ${!menuItem.is_featured ? 'featured' : 'unfeatured'} successfully`)
-            refetch()
+            // Update local state
+            setLocalMenuItem(prev => prev ? { ...prev, is_featured: !prev.is_featured } : null)
+
+            // Update localStorage
+            localStorage.setItem(`menu-item-${menuItemId}`, JSON.stringify({
+                data: { ...localMenuItem, is_featured: !localMenuItem.is_featured },
+                timestamp: Date.now()
+            }))
+
+            toast.success(`Menu item ${!localMenuItem.is_featured ? 'featured' : 'unfeatured'} successfully`)
         } catch (error) {
             toast.error('Failed to update featured status')
             console.error(error)
@@ -177,7 +227,7 @@ export default function MenuItemDetailsPage() {
         )
     }
 
-    if (!menuItem) {
+    if (!localMenuItem) {
         return (
             <Card>
                 <CardContent className="pt-6">
@@ -212,34 +262,34 @@ export default function MenuItemDetailsPage() {
                         >
                             <ArrowLeft className="h-4 w-4" />
                         </Button>
-                        <h1 className="text-2xl font-bold">{menuItem.name}</h1>
+                        <h1 className="text-2xl font-bold">{localMenuItem.name}</h1>
                         <div>
-                            {menuItem.is_featured && (
+                            {localMenuItem.is_featured && (
                                 <Badge variant="default" className="ml-2">Featured</Badge>
                             )}
                             <Badge
-                                variant={menuItem.is_available ? "outline" : "secondary"}
+                                variant={localMenuItem.is_available ? "outline" : "secondary"}
                                 className="ml-2"
                             >
-                                {menuItem.is_available ? 'Available' : 'Unavailable'}
+                                {localMenuItem.is_available ? 'Available' : 'Unavailable'}
                             </Badge>
                         </div>
                     </div>
-                    {menuItem.restaurant && (
+                    {localMenuItem.restaurant && (
                         <p className="text-muted-foreground flex items-center mt-1">
                             <Building2 className="h-3 w-3 mr-1" />
-                            {menuItem.restaurant.name}
+                            {localMenuItem.restaurant.name}
                         </p>
                     )}
                 </div>
                 <div className="flex gap-2 w-full sm:w-auto">
                     <Button
-                        variant={menuItem.is_available ? "outline" : "default"}
+                        variant={localMenuItem.is_available ? "outline" : "default"}
                         onClick={handleToggleAvailability}
                         disabled={toggleAvailability.isPending}
                         className="flex-1 sm:flex-auto"
                     >
-                        {menuItem.is_available ? (
+                        {localMenuItem.is_available ? (
                             <>
                                 <EyeOff className="mr-2 h-4 w-4" />
                                 Mark Unavailable
@@ -253,7 +303,7 @@ export default function MenuItemDetailsPage() {
                     </Button>
                     <Button
                         variant="outline"
-                        onClick={() => router.push(`/admin/menu-items/${menuItem.id}/edit`)}
+                        onClick={() => router.push(`/admin/menu-items/${localMenuItem.id}/edit`)}
                         className="flex-1 sm:flex-auto"
                     >
                         <Edit className="mr-2 h-4 w-4" />
@@ -273,10 +323,10 @@ export default function MenuItemDetailsPage() {
             <div className="grid gap-6 md:grid-cols-2">
                 <Card>
                     <div className="aspect-video w-full bg-muted relative overflow-hidden">
-                        {menuItem.image_url ? (
+                        {localMenuItem.image_url ? (
                             <Image
-                                src={menuItem.image_url}
-                                alt={menuItem.name}
+                                src={localMenuItem.image_url}
+                                alt={localMenuItem.name}
                                 fill
                                 className="object-cover"
                             />
@@ -287,59 +337,59 @@ export default function MenuItemDetailsPage() {
                         )}
                     </div>
                     <CardHeader>
-                        <CardTitle>{menuItem.name}</CardTitle>
+                        <CardTitle>{localMenuItem.name}</CardTitle>
                         <CardDescription>
-                            {menuItem.description || 'No description provided'}
+                            {localMenuItem.description || 'No description provided'}
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="flex flex-wrap items-center gap-4">
                             <div>
                                 <p className="text-sm text-muted-foreground">Price</p>
-                                <p className="text-2xl font-bold">{formatPrice(menuItem.price)}</p>
+                                <p className="text-2xl font-bold">{formatPrice(localMenuItem.price)}</p>
                             </div>
 
-                            {menuItem.preparation_time && (
+                            {localMenuItem.preparation_time && (
                                 <div className="flex items-center gap-1">
                                     <Clock className="h-4 w-4 text-muted-foreground" />
-                                    <span>{menuItem.preparation_time} min prep time</span>
+                                    <span>{localMenuItem.preparation_time} min prep time</span>
                                 </div>
                             )}
                         </div>
 
                         <div className="flex flex-wrap gap-2">
-                            {menuItem.restaurant && (
+                            {localMenuItem.restaurant && (
                                 <Badge variant="outline" className="flex items-center gap-1">
                                     <Building2 className="h-3 w-3" />
-                                    <span>{menuItem.restaurant.name}</span>
+                                    <span>{localMenuItem.restaurant.name}</span>
                                 </Badge>
                             )}
 
-                            {menuItem.category && (
+                            {localMenuItem.category && (
                                 <Badge variant="outline" className="flex items-center gap-1">
                                     <Tag className="h-3 w-3" />
-                                    <span>{menuItem.category.name}</span>
+                                    <span>{localMenuItem.category.name}</span>
                                 </Badge>
                             )}
                         </div>
                     </CardContent>
                     <CardFooter className="flex gap-2">
                         <Button
-                            variant={menuItem.is_featured ? "outline" : "secondary"}
+                            variant={localMenuItem.is_featured ? "outline" : "secondary"}
                             onClick={handleToggleFeatured}
                             disabled={toggleFeatured.isPending}
                             className="flex-1"
                         >
                             <Star className="mr-2 h-4 w-4" />
-                            {menuItem.is_featured ? 'Remove from Featured' : 'Add to Featured'}
+                            {localMenuItem.is_featured ? 'Remove from Featured' : 'Add to Featured'}
                         </Button>
                     </CardFooter>
                 </Card>
 
                 <div className="space-y-6">
-                    {menuItem.customization_options &&
-                        Array.isArray(menuItem.customization_options) &&
-                        menuItem.customization_options.length > 0 ? (
+                    {localMenuItem.customization_options &&
+                        Array.isArray(localMenuItem.customization_options) &&
+                        localMenuItem.customization_options.length > 0 ? (
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center justify-between">
@@ -347,7 +397,7 @@ export default function MenuItemDetailsPage() {
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => router.push(`/admin/menu-items/${menuItem.id}/edit`)}
+                                        onClick={() => router.push(`/admin/menu-items/${localMenuItem.id}/edit`)}
                                     >
                                         <Pencil className="h-4 w-4 mr-2" />
                                         Edit
@@ -355,7 +405,7 @@ export default function MenuItemDetailsPage() {
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                {menuItem.customization_options.map((option: any, index: number) => (
+                                {localMenuItem.customization_options.map((option: any, index: number) => (
                                     <div key={option.id || index} className="border rounded-md p-4">
                                         <div className="flex justify-between items-center mb-2">
                                             <h3 className="font-medium">{option.name}</h3>
@@ -398,7 +448,7 @@ export default function MenuItemDetailsPage() {
                                     </p>
                                     <Button
                                         variant="outline"
-                                        onClick={() => router.push(`/admin/menu-items/${menuItem.id}/edit`)}
+                                        onClick={() => router.push(`/admin/menu-items/${localMenuItem.id}/edit`)}
                                         className="mt-4"
                                     >
                                         <Pencil className="h-4 w-4 mr-2" />
@@ -417,7 +467,7 @@ export default function MenuItemDetailsPage() {
                             <div className="grid gap-4 grid-cols-2">
                                 <div>
                                     <p className="text-sm text-muted-foreground mb-1">Total Orders</p>
-                                    <p className="text-2xl font-semibold">{menuItem.total_orders || 0}</p>
+                                    <p className="text-2xl font-semibold">{localMenuItem.total_orders || 0}</p>
                                 </div>
 
                                 <div>
@@ -425,20 +475,20 @@ export default function MenuItemDetailsPage() {
                                     <div className="flex items-center">
                                         <Star className="h-5 w-5 text-amber-500 mr-1" />
                                         <span className="text-2xl font-semibold">
-                                            {menuItem.average_rating?.toFixed(1) || 'N/A'}
+                                            {localMenuItem.average_rating?.toFixed(1) || 'N/A'}
                                         </span>
                                     </div>
                                 </div>
 
                                 <div>
                                     <p className="text-sm text-muted-foreground mb-1">Favorites</p>
-                                    <p className="text-2xl font-semibold">{menuItem.favorites_count || 0}</p>
+                                    <p className="text-2xl font-semibold">{localMenuItem.favorites_count || 0}</p>
                                 </div>
 
                                 <div>
                                     <p className="text-sm text-muted-foreground mb-1">Added On</p>
                                     <p className="text-lg font-semibold">
-                                        {new Date(menuItem.created_at || '').toLocaleDateString()}
+                                        {new Date(localMenuItem.created_at || '').toLocaleDateString()}
                                     </p>
                                 </div>
                             </div>
@@ -453,7 +503,7 @@ export default function MenuItemDetailsPage() {
                     <DialogHeader>
                         <DialogTitle>Delete Menu Item</DialogTitle>
                         <DialogDescription>
-                            Are you sure you want to delete "{menuItem.name}"? This action cannot be undone.
+                            Are you sure you want to delete "{localMenuItem.name}"? This action cannot be undone.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>

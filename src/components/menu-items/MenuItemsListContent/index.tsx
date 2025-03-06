@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
@@ -57,6 +57,7 @@ import { useMenuItems } from '@/services/useMenuItems'
 import { useRestaurants } from '@/services/useRestaurants'
 import { useQuery } from '@tanstack/react-query'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { getProxiedImageUrl } from '@/lib/imageUtils'
 
 type MenuItem = Database['public']['Tables']['menu_items']['Row'] & {
     restaurant?: { id: string, name: string } | null,
@@ -67,7 +68,70 @@ interface MenuItemsListContentProps {
     initialRestaurantId?: string
 }
 
+// Custom Image component with fallback
+const ImageWithFallback = ({ src, alt, ...props }: any) => {
+    const [imgSrc, setImgSrc] = useState<string>('');
+    const [nextImageFailed, setNextImageFailed] = useState(false);
+    const [regularImgFailed, setRegularImgFailed] = useState(false);
+
+    useEffect(() => {
+        // Convert Supabase URLs to our proxy URLs
+        const proxiedUrl = getProxiedImageUrl(src);
+        setImgSrc(proxiedUrl);
+        setNextImageFailed(false);
+        setRegularImgFailed(false);
+
+    }, [src]);
+
+    // If both image approaches fail, show fallback
+    if (!imgSrc || (nextImageFailed && regularImgFailed)) {
+        return (
+            <div className="h-full w-full flex items-center justify-center">
+                <Utensils className="h-10 w-10 text-muted-foreground" />
+            </div>
+        );
+    }
+
+    // Try Next.js Image first
+    if (!nextImageFailed) {
+        return (
+            <Image
+                {...props}
+                src={imgSrc}
+                alt={alt}
+                onError={(e) => {
+                    console.error(`Next.js Image failed to load: ${imgSrc}`, e);
+                    setNextImageFailed(true);
+                }}
+                unoptimized
+                loading="lazy"
+            />
+        );
+    }
+
+    // If Next.js Image fails, try regular img tag
+    return (
+        <div className="relative h-full w-full">
+            <img
+                src={imgSrc}
+                alt={alt}
+                className={`${props.className || ''} h-full w-full object-cover`}
+                onError={(e) => {
+                    console.error(`Regular img tag failed to load: ${imgSrc}`, e);
+                    setRegularImgFailed(true);
+                }}
+                loading="lazy"
+            />
+        </div>
+    );
+};
+
 export default function MenuItemsListContent({ initialRestaurantId }: MenuItemsListContentProps) {
+    // Log when the component renders
+    useEffect(() => {
+        console.log('MenuItemsListContent rendered');
+    }, []);
+
     const router = useRouter()
     const [searchTerm, setSearchTerm] = useState('')
     const [isFilterOpen, setIsFilterOpen] = useState(false)
@@ -254,11 +318,11 @@ export default function MenuItemsListContent({ initialRestaurantId }: MenuItemsL
                                     <div className="space-y-2">
                                         <Label htmlFor="restaurant-filter">Restaurant</Label>
                                         <Select
-                                            value={filters.restaurantId || ''}
+                                            value={filters.restaurantId || 'all'}
                                             onValueChange={(value) => {
                                                 setFilters({
                                                     ...filters,
-                                                    restaurantId: value || undefined,
+                                                    restaurantId: value === 'all' ? undefined : value,
                                                     categoryId: undefined // Reset category when restaurant changes
                                                 });
                                             }}
@@ -267,7 +331,7 @@ export default function MenuItemsListContent({ initialRestaurantId }: MenuItemsL
                                                 <SelectValue placeholder="All restaurants" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="">All restaurants</SelectItem>
+                                                <SelectItem value="all">All restaurants</SelectItem>
                                                 {restaurants?.map((restaurant) => (
                                                     <SelectItem key={restaurant.id} value={restaurant.id}>
                                                         {restaurant.name}
@@ -280,11 +344,11 @@ export default function MenuItemsListContent({ initialRestaurantId }: MenuItemsL
                                     <div className="space-y-2">
                                         <Label htmlFor="category-filter">Category</Label>
                                         <Select
-                                            value={filters.categoryId || ''}
+                                            value={filters.categoryId || 'all'}
                                             onValueChange={(value) => {
                                                 setFilters({
                                                     ...filters,
-                                                    categoryId: value || undefined
+                                                    categoryId: value === 'all' ? undefined : value
                                                 });
                                             }}
                                             disabled={!filters.restaurantId || isLoadingCategories}
@@ -294,7 +358,7 @@ export default function MenuItemsListContent({ initialRestaurantId }: MenuItemsL
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {filters.restaurantId && (
-                                                    <SelectItem value="">All categories</SelectItem>
+                                                    <SelectItem value="all">All categories</SelectItem>
                                                 )}
                                                 {categories?.map((category) => (
                                                     <SelectItem key={category.id} value={category.id}>
@@ -450,7 +514,7 @@ export default function MenuItemsListContent({ initialRestaurantId }: MenuItemsL
                             <Card className="overflow-hidden h-full flex flex-col">
                                 <div className="relative aspect-video w-full bg-muted overflow-hidden">
                                     {item.image_url ? (
-                                        <Image
+                                        <ImageWithFallback
                                             src={item.image_url}
                                             alt={item.name}
                                             fill

@@ -1,7 +1,7 @@
 // src/app/admin/menu-items/[id]/edit/page.tsx
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import MenuItemForm from '@/components/menu-items/MenuItemForm'
 import { Card, CardContent } from '@/components/ui/card'
@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { AlertCircle } from 'lucide-react'
 import type { Database } from '@/types/supabase'
-import { useMenuItems } from '@/services/useMenuItems'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 type MenuItem = Database['public']['Tables']['menu_items']['Row']
 
@@ -20,27 +20,61 @@ export default function EditMenuItemPage() {
     const [menuItem, setMenuItem] = useState<MenuItem | null>(null)
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<Error | null>(null)
+    const supabase = createClientComponentClient<Database>()
 
-    const { getMenuItemById } = useMenuItems()
+    const fetchMenuItem = useCallback(async () => {
+        try {
+            setIsLoading(true)
+            console.log(`Fetching menu item for edit: ${menuItemId}`)
+
+            // Try to get from localStorage first
+            const cachedData = localStorage.getItem(`menu-item-${menuItemId}`)
+            if (cachedData) {
+                const { data, timestamp } = JSON.parse(cachedData)
+                const isStale = Date.now() - timestamp > 5 * 60 * 1000 // 5 minutes
+
+                if (!isStale) {
+                    console.log('Using cached menu item data for edit page')
+                    setMenuItem(data)
+                    setIsLoading(false)
+                    return
+                }
+            }
+
+            // Fetch from API if no cache or cache is stale
+            console.log('Fetching menu item from API for edit page')
+            const { data, error } = await supabase
+                .from('menu_items')
+                .select(`
+                    *,
+                    restaurant:restaurant_id(id, name),
+                    category:category_id(id, name)
+                `)
+                .eq('id', menuItemId)
+                .single()
+
+            if (error) throw error
+
+            // Save to localStorage with timestamp
+            localStorage.setItem(`menu-item-${menuItemId}`, JSON.stringify({
+                data,
+                timestamp: Date.now()
+            }))
+
+            setMenuItem(data)
+        } catch (err) {
+            console.error('Error fetching menu item for edit:', err)
+            setError(err instanceof Error ? err : new Error('Failed to fetch menu item'))
+        } finally {
+            setIsLoading(false)
+        }
+    }, [menuItemId, supabase])
 
     useEffect(() => {
-        const fetchMenuItem = async () => {
-            try {
-                setIsLoading(true)
-                const menuItemData = await getMenuItemById(menuItemId)
-                setMenuItem(menuItemData)
-            } catch (err) {
-                console.error('Error fetching menu item:', err)
-                setError(err instanceof Error ? err : new Error('Failed to fetch menu item'))
-            } finally {
-                setIsLoading(false)
-            }
-        }
-
         if (menuItemId) {
             fetchMenuItem()
         }
-    }, [menuItemId, getMenuItemById])
+    }, [menuItemId, fetchMenuItem])
 
     if (isLoading) {
         return (
