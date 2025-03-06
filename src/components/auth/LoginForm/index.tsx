@@ -11,6 +11,7 @@ import { Loader2, LogIn, Utensils } from "lucide-react"
 import { toast } from "sonner"
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { Database } from '@/types/supabase'
+import Link from 'next/link'
 
 export default function LoginForm() {
     const [email, setEmail] = useState('')
@@ -36,8 +37,24 @@ export default function LoginForm() {
             if (signInError) throw signInError
 
             if (data.session) {
+                // Get user role from the database
+                const { data: userData, error: userError } = await supabase
+                    .from('users')
+                    .select('user_type')
+                    .eq('id', data.session.user.id)
+                    .single()
+
+                if (userError) throw userError
+
                 toast.success("Login successful")
-                router.push('/admin/dashboard')
+
+                // Redirect based on user role
+                if (userData.user_type === 'restaurant_owner') {
+                    router.push('/restaurant-owner/dashboard')
+                } else {
+                    // Default fallback
+                    router.push('/admin/dashboard')
+                }
             } else {
                 throw new Error('No session created')
             }
@@ -158,10 +175,13 @@ export default function LoginForm() {
                         </motion.div>
                     </form>
                 </CardContent>
-                <CardFooter className="border-t pt-4">
-                    <p className="text-xs text-center w-full text-muted-foreground">
-                        Protected admin portal for VEat food delivery platform
-                    </p>
+                <CardFooter className="border-t pt-4 w-full">
+                    <div className="text-base text-center">
+                        Want to join as a restaurant owner?{' '}
+                        <Link href="/register/restaurant-owner" className="text-primary hover:underline">
+                            Register here
+                        </Link>
+                    </div>
                 </CardFooter>
             </Card>
         </motion.div>

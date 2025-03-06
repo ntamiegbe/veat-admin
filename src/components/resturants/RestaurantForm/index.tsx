@@ -26,12 +26,14 @@ import {
     Save,
     Loader2,
     ArrowLeft,
-    Tag
+    Tag,
+    User
 } from 'lucide-react'
-import { User } from '@supabase/supabase-js'
+import { User as SupabaseUser } from '@supabase/supabase-js'
 import type { Database } from '@/types/supabase'
 import { useLocations } from '@/services/useLocations'
 import { useRestaurants } from '@/services/useRestaurants'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 type Restaurant = Database['public']['Tables']['restaurants']['Row']
 type RestaurantInsert = Database['public']['Tables']['restaurants']['Insert']
@@ -39,7 +41,7 @@ type RestaurantUpdate = Database['public']['Tables']['restaurants']['Update']
 
 interface RestaurantFormProps {
     restaurant?: Restaurant
-    user: User | null
+    user: SupabaseUser | null
 }
 
 export default function RestaurantForm({ restaurant, user }: RestaurantFormProps) {
@@ -48,6 +50,10 @@ export default function RestaurantForm({ restaurant, user }: RestaurantFormProps
 
     // Get locations for the dropdown
     const { locations, isLoading: isLocationsLoading } = useLocations()
+
+    // Get restaurant owners for the dropdown
+    const [restaurantOwners, setRestaurantOwners] = useState<any[]>([])
+    const [isOwnersLoading, setIsOwnersLoading] = useState(false)
 
     // Restaurant operations
     const { createRestaurant, updateRestaurant } = useRestaurants()
@@ -77,6 +83,31 @@ export default function RestaurantForm({ restaurant, user }: RestaurantFormProps
 
     // Input for cuisine types (comma-separated)
     const [cuisineInput, setCuisineInput] = useState('')
+
+    // Fetch restaurant owners
+    useEffect(() => {
+        const fetchRestaurantOwners = async () => {
+            setIsOwnersLoading(true)
+            try {
+                const supabase = createClientComponentClient<Database>()
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('id, email, full_name')
+                    .eq('user_type', 'restaurant_owner')
+
+                if (error) throw error
+
+                setRestaurantOwners(data || [])
+            } catch (error) {
+                console.error('Error fetching restaurant owners:', error)
+                toast.error('Failed to load restaurant owners')
+            } finally {
+                setIsOwnersLoading(false)
+            }
+        }
+
+        fetchRestaurantOwners()
+    }, [])
 
     // Fill form with restaurant data if in edit mode
     useEffect(() => {
@@ -128,7 +159,14 @@ export default function RestaurantForm({ restaurant, user }: RestaurantFormProps
     const handleLocationChange = (locationId: string) => {
         setFormData(prev => ({
             ...prev,
-            location_id: locationId || null
+            location_id: locationId
+        }))
+    }
+
+    const handleOwnerChange = (ownerId: string) => {
+        setFormData(prev => ({
+            ...prev,
+            owner_id: ownerId === 'none' ? '' : ownerId
         }))
     }
 
@@ -261,6 +299,37 @@ export default function RestaurantForm({ restaurant, user }: RestaurantFormProps
                                         Select a location to categorize this restaurant
                                     </p>
                                 )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="owner">Restaurant Owner</Label>
+                                <div className="flex items-center">
+                                    <User className="mr-2 h-4 w-4 text-muted-foreground" />
+                                    {isOwnersLoading ? (
+                                        <Skeleton className="h-10 w-full" />
+                                    ) : (
+                                        <Select
+                                            value={formData.owner_id || ''}
+                                            onValueChange={handleOwnerChange}
+                                            disabled={isPending || isOwnersLoading}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select an owner" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">Select an owner</SelectItem>
+                                                {restaurantOwners.map((owner) => (
+                                                    <SelectItem key={owner.id} value={owner.id}>
+                                                        {owner.full_name} ({owner.email})
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    )}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Assign a restaurant owner who will manage this restaurant
+                                </p>
                             </div>
 
                             <div className="space-y-2">

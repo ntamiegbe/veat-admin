@@ -110,7 +110,7 @@ export default function MenuItemsFilter({ filters, onFilterChange }: MenuItemsFi
     const handleRestaurantChange = (value: string) => {
         const newFilters = {
             ...localFilters,
-            restaurantId: value || undefined,
+            restaurantId: value === 'all' ? undefined : value,
             categoryId: undefined  // Reset category when restaurant changes
         }
         setLocalFilters(newFilters)
@@ -121,7 +121,7 @@ export default function MenuItemsFilter({ filters, onFilterChange }: MenuItemsFi
     const handleCategoryChange = (value: string) => {
         const newFilters = {
             ...localFilters,
-            categoryId: value || undefined
+            categoryId: value === 'all' ? undefined : value
         }
         setLocalFilters(newFilters)
         onFilterChange(newFilters)
@@ -283,7 +283,7 @@ export default function MenuItemsFilter({ filters, onFilterChange }: MenuItemsFi
                                                 <SelectValue placeholder="All restaurants" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="">All restaurants</SelectItem>
+                                                <SelectItem value="all">All restaurants</SelectItem>
                                                 {restaurants?.map(restaurant => (
                                                     <SelectItem key={restaurant.id} value={restaurant.id}>
                                                         {restaurant.name}
@@ -308,7 +308,7 @@ export default function MenuItemsFilter({ filters, onFilterChange }: MenuItemsFi
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {localFilters.restaurantId && (
-                                                    <SelectItem value="">All categories</SelectItem>
+                                                    <SelectItem value="all">All categories</SelectItem>
                                                 )}
                                                 {categories?.map(category => (
                                                     <SelectItem key={category.id} value={category.id}>

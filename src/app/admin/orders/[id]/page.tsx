@@ -193,7 +193,7 @@ function OrderDetails({ orderId }: { orderId: string }) {
         try {
             await assignRider.mutateAsync({
                 id: order.id,
-                riderId: selectedRiderId
+                riderId: selectedRiderId === "none" ? null : selectedRiderId
             })
 
             toast.success('Rider assigned successfully')
@@ -691,7 +691,7 @@ function OrderDetails({ orderId }: { orderId: string }) {
                                     <SelectValue placeholder="Select a rider" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">No rider (unassign)</SelectItem>
+                                    <SelectItem value="none">No rider (unassign)</SelectItem>
                                     {riders?.map((rider) => (
                                         <SelectItem key={rider.id} value={rider.id}>
                                             {rider.full_name}

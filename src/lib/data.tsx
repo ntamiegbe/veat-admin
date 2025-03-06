@@ -32,6 +32,7 @@ export const menuItems = [
     submenu: [
       { title: 'All Restaurants', path: '/admin/restaurants', icon: <Store size={16} /> },
       { title: 'Add Restaurant', path: '/admin/restaurants/new', icon: <Plus size={16} /> },
+      { title: 'Restaurant Owners', path: '/admin/restaurant-owners', icon: <User size={16} /> },
       { title: 'Categories', path: '/admin/restaurants-categories', icon: <ListOrdered size={16} /> }
     ]
   },
