@@ -15,26 +15,23 @@ import { ArrowLeft, Save } from 'lucide-react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { Database } from '@/types/supabase'
 
-type Restaurant = Database['public']['Tables']['restaurants']['Row']
 type RestaurantUpdate = Database['public']['Tables']['restaurants']['Update']
 
 export default function EditRestaurantPage() {
     const params = useParams()
     const router = useRouter()
     const restaurantId = params.id as string
-    const { currentUser, userRestaurants, isLoading: isAuthLoading, requireRole, ownsRestaurant } = useAuth()
+    const { userRestaurants, isLoading: isAuthLoading, requireRole, ownsRestaurant } = useAuth()
     const { isLoading: isAuthChecking } = requireRole('restaurant_owner')
     const [isLoading, setIsLoading] = useState(true)
     const [isSaving, setIsSaving] = useState(false)
     const [formData, setFormData] = useState<RestaurantUpdate>({
         name: '',
         description: '',
-        cuisine_type: '',
         address: '',
         phone_number: '',
         is_active: true,
         is_featured: false,
-        delivery_fee: 0,
         minimum_order_amount: 0,
         average_preparation_time: 0
     })
@@ -68,12 +65,10 @@ export default function EditRestaurantPage() {
                     id: data.id,
                     name: data.name,
                     description: data.description || '',
-                    cuisine_type: data.cuisine_type || '',
                     address: data.address || '',
                     phone_number: data.phone_number || '',
                     is_active: data.is_active || false,
                     is_featured: data.is_featured || false,
-                    delivery_fee: data.delivery_fee || 0,
                     minimum_order_amount: data.minimum_order_amount || 0,
                     average_preparation_time: data.average_preparation_time || 0
                 })
@@ -179,7 +174,7 @@ export default function EditRestaurantPage() {
                 <CardHeader>
                     <CardTitle>Restaurant Information</CardTitle>
                     <CardDescription>
-                        Update your restaurant's details
+                        Update your restaurant&apos;s details
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -209,7 +204,7 @@ export default function EditRestaurantPage() {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
+                            {/* <div className="space-y-2">
                                 <Label htmlFor="cuisine_type">Cuisine Type</Label>
                                 <Input
                                     id="cuisine_type"
@@ -218,7 +213,7 @@ export default function EditRestaurantPage() {
                                     onChange={handleInputChange}
                                     placeholder="e.g. Italian, Chinese, Mexican"
                                 />
-                            </div>
+                            </div> */}
 
                             <div className="space-y-2">
                                 <Label htmlFor="phone_number">Phone Number</Label>
@@ -245,7 +240,7 @@ export default function EditRestaurantPage() {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="space-y-2">
+                            {/* <div className="space-y-2">
                                 <Label htmlFor="delivery_fee">Delivery Fee ($)</Label>
                                 <Input
                                     id="delivery_fee"
@@ -256,7 +251,7 @@ export default function EditRestaurantPage() {
                                     onChange={(e) => handleNumericChange(e, 'delivery_fee')}
                                     placeholder="0.00"
                                 />
-                            </div>
+                            </div> */}
 
                             <div className="space-y-2">
                                 <Label htmlFor="minimum_order_amount">Minimum Order ($)</Label>
@@ -288,7 +283,7 @@ export default function EditRestaurantPage() {
                             <div className="space-y-0.5">
                                 <Label htmlFor="is_active">Active Status</Label>
                                 <p className="text-sm text-muted-foreground">
-                                    Inactive restaurants won't be shown to customers
+                                    Inactive restaurants won&apos;t be shown to customers
                                 </p>
                             </div>
                             <Switch
