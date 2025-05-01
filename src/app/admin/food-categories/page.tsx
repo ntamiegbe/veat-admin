@@ -75,7 +75,7 @@ export default function FoodCategoriesPage() {
                 const fileExt = selectedImage.name.split('.').pop()
                 const filePath = `food-categories/${Math.random().toString(36).substring(2, 15)}.${fileExt}`
 
-                const { error: uploadError, data: uploadData } = await supabase.storage
+                const { error: uploadError} = await supabase.storage
                     .from('menu-images')
                     .upload(filePath, selectedImage)
 

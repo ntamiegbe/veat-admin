@@ -1,11 +1,12 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { useOrders } from '@/services/useOrders'
 import { toast } from 'sonner'
 import { Loader2, CheckCircle2, Navigation, Clock, MapPin } from 'lucide-react'
-import { Progress } from '@/components/ui/progress'
 import type { Database } from '@/types/supabase'
+import { Progress } from '@radix-ui/react-progress'
 
 type Order = Database['public']['Tables']['orders']['Row']
 
@@ -40,12 +41,12 @@ export function DeliveryTrackingActions({
             await confirmOrderPickup.mutateAsync({
                 id: order.id,
                 restaurantId: order.restaurant_id,
-                deliveryLocationId: order.delivery_location_id
+                deliveryLocationId: order.delivery_location_id || ''
             })
             toast.success('Order pickup confirmed')
             if (onStatusUpdate) onStatusUpdate()
-        } catch (error: any) {
-            toast.error(`Failed to confirm pickup: ${error.message}`)
+        } catch (error: unknown) {
+            toast.error(`Failed to confirm pickup: ${error instanceof Error ? error.message : 'Unknown error'}`)
         }
     }
 
@@ -109,7 +110,7 @@ export function DeliveryTrackingActions({
 
             {isRider && (
                 <CardFooter className="flex justify-end space-x-2">
-                    {!order.pickup_confirmed_at && (
+                    {order.order_status === 'preparing' && (
                         <Button
                             onClick={handleConfirmPickup}
                             disabled={confirmOrderPickup.isPending}
@@ -121,7 +122,7 @@ export function DeliveryTrackingActions({
                         </Button>
                     )}
 
-                    {order.pickup_confirmed_at && !order.delivery_confirmed_at && (
+                    {order.order_status === 'picked_up' && (
                         <Button
                             onClick={handleConfirmDelivery}
                             disabled={confirmOrderDelivery.isPending}
