@@ -383,7 +383,7 @@ export function useOrders(filters?: OrderFilters) {
 
             // Calculate estimated delivery time based on restaurant location and delivery location
             const estimatedMinutes = await getEstimatedDeliveryTime(
-                restaurant.location_id,
+                restaurant.location_id || '',
                 deliveryLocationId
             )
 
@@ -395,11 +395,8 @@ export function useOrders(filters?: OrderFilters) {
             const { data, error } = await supabase
                 .from('orders')
                 .update({
-                    pickup_confirmed_at: now.toISOString(),
-                    estimated_delivery_minutes: estimatedMinutes,
-                    estimated_delivery_at: estimatedDeliveryAt.toISOString(),
-                    delivery_status: 'picked_up',
-                    order_status: 'in_transit'
+                    order_status: 'in_transit',
+                    estimated_delivery_time: estimatedDeliveryAt.toISOString()
                 })
                 .eq('id', id)
                 .select()
@@ -433,9 +430,8 @@ export function useOrders(filters?: OrderFilters) {
             const { data, error } = await supabase
                 .from('orders')
                 .update({
-                    delivery_confirmed_at: now.toISOString(),
-                    delivery_status: 'delivered',
-                    order_status: 'completed'
+                    order_status: 'completed',
+                    actual_delivery_time: now.toISOString()
                 })
                 .eq('id', id)
                 .select()
@@ -463,74 +459,43 @@ export function useOrders(filters?: OrderFilters) {
 
     // Get order delivery progress percentage
     const getOrderDeliveryProgress = (order: Order): number => {
-        if (!order.pickup_confirmed_at) {
-            return 0
+        switch (order.order_status) {
+            case 'preparing':
+                return 0
+            case 'in_transit':
+                return 50
+            case 'completed':
+                return 100
+            default:
+                return 0
         }
-
-        if (order.delivery_confirmed_at) {
-            return 100
-        }
-
-        if (!order.estimated_delivery_at) {
-            return 50 // Default to 50% if no estimated delivery time
-        }
-
-        const pickupTime = new Date(order.pickup_confirmed_at).getTime()
-        const estimatedDeliveryTime = new Date(order.estimated_delivery_at).getTime()
-        const currentTime = new Date().getTime()
-        const totalTime = estimatedDeliveryTime - pickupTime
-
-        if (totalTime <= 0) {
-            return 90 // Avoid division by zero
-        }
-
-        const elapsedTime = currentTime - pickupTime
-        let progress = Math.round((elapsedTime / totalTime) * 100)
-
-        // Cap progress at 99% until delivery is confirmed
-        if (progress >= 100 && !order.delivery_confirmed_at) {
-            progress = 99
-        }
-
-        return progress
     }
 
     // Get order delivery status message based on progress
     const getOrderDeliveryStatusMessage = (order: Order): string => {
-        if (!order.pickup_confirmed_at) {
-            return 'Preparing order'
-        }
-
-        if (order.delivery_confirmed_at) {
-            return 'Delivered'
-        }
-
-        const progress = getOrderDeliveryProgress(order)
-
-        if (progress < 25) {
-            return 'Order picked up, on the way to you'
-        } else if (progress < 50) {
-            return 'Rider is on the way'
-        } else if (progress < 75) {
-            return 'Rider is halfway there'
-        } else if (progress < 90) {
-            return 'Your order is almost there'
-        } else {
-            return 'Arriving very soon'
+        switch (order.order_status) {
+            case 'preparing':
+                return 'Preparing order'
+            case 'in_transit':
+                return 'Order is on the way'
+            case 'completed':
+                return 'Delivered'
+            default:
+                return 'Order received'
         }
     }
 
     // Get estimated minutes remaining
     const getEstimatedMinutesRemaining = (order: Order): number | null => {
-        if (!order.pickup_confirmed_at || !order.estimated_delivery_at) {
+        if (!order.estimated_delivery_time) {
             return null
         }
 
-        if (order.delivery_confirmed_at) {
+        if (order.order_status === 'completed') {
             return 0
         }
 
-        const estimatedDeliveryTime = new Date(order.estimated_delivery_at).getTime()
+        const estimatedDeliveryTime = new Date(order.estimated_delivery_time).getTime()
         const currentTime = new Date().getTime()
         const remainingTime = estimatedDeliveryTime - currentTime
 

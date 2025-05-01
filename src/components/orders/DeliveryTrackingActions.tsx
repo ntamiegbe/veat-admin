@@ -5,8 +5,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useOrders } from '@/services/useOrders'
 import { toast } from 'sonner'
 import { Loader2, CheckCircle2, Navigation, Clock, MapPin } from 'lucide-react'
+import { Progress } from '@/components/ui/progress'
 import type { Database } from '@/types/supabase'
-import { Progress } from '@radix-ui/react-progress'
 
 type Order = Database['public']['Tables']['orders']['Row']
 
@@ -57,8 +57,8 @@ export function DeliveryTrackingActions({
             await confirmOrderDelivery.mutateAsync(order.id)
             toast.success('Order delivery confirmed')
             if (onStatusUpdate) onStatusUpdate()
-        } catch (error: any) {
-            toast.error(`Failed to confirm delivery: ${error.message}`)
+        } catch (error: unknown) {
+            toast.error(`Failed to confirm delivery: ${error instanceof Error ? error.message : 'Unknown error'}`)
         }
     }
 
@@ -122,7 +122,7 @@ export function DeliveryTrackingActions({
                         </Button>
                     )}
 
-                    {order.order_status === 'picked_up' && (
+                    {order.order_status === 'in_transit' && (
                         <Button
                             onClick={handleConfirmDelivery}
                             disabled={confirmOrderDelivery.isPending}
