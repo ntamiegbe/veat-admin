@@ -43,6 +43,7 @@ import { useUsers } from '@/services/useUsers'
 import { format } from 'date-fns'
 import { Separator } from '@/components/ui/separator'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { DeliveryTrackingActions } from '@/components/orders/DeliveryTrackingActions'
 
 type Order = Database['public']['Tables']['orders']['Row'] & {
     user?: { id: string, full_name: string, phone_number: string, email: string } | null,
@@ -275,6 +276,9 @@ function OrderDetails({ orderId }: { orderId: string }) {
         window.print()
     }
 
+    // Order tracking and delivery section (place it after customer information card)
+    const isDeliveryOrder = order && ['out_for_delivery', 'in_transit', 'picked_up'].includes(order.order_status);
+
     if (isLoading) {
         return (
             <div className="space-y-6">
@@ -486,6 +490,17 @@ function OrderDetails({ orderId }: { orderId: string }) {
                                 )}
                             </CardContent>
                         </Card>
+                    )}
+
+                    {/* Delivery Tracking - Add this section */}
+                    {isDeliveryOrder && order && (
+                        <DeliveryTrackingActions
+                            order={order}
+                            isRider={false}
+                            onStatusUpdate={() => {
+                                refetch();
+                            }}
+                        />
                     )}
                 </div>
 

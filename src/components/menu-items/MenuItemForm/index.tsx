@@ -127,6 +127,20 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
     // Restaurant operations
     const { createMenuItem, updateMenuItem, uploadImage } = useMenuItems()
 
+    // Get food categories
+    const { data: foodCategories, isLoading: isLoadingFoodCategories } = useQuery({
+        queryKey: ['food-categories'],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('food_categories')
+                .select('*')
+                .order('name')
+
+            if (error) throw error
+            return data
+        }
+    })
+
     // Form state with all menu item fields
     const [formData, setFormData] = useState<{
         name: string;
@@ -134,6 +148,7 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
         price: number;
         restaurant_id: string | null;
         category_id: string | null;
+        food_category_id: string | null;
         image_url: string | null;
         is_available: boolean;
         is_featured: boolean;
@@ -145,6 +160,7 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
         price: 0,
         restaurant_id: initialRestaurantId || null,
         category_id: null,
+        food_category_id: null,
         image_url: null,
         is_available: true,
         is_featured: false,
@@ -172,6 +188,7 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
                 price: menuItem.price,
                 restaurant_id: menuItem.restaurant_id,
                 category_id: menuItem.category_id,
+                food_category_id: menuItem.food_category_id,
                 image_url: menuItem.image_url,
                 is_available: menuItem.is_available ?? true,
                 is_featured: menuItem.is_featured ?? false,
@@ -239,6 +256,14 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
         setFormData(prev => ({
             ...prev,
             category_id: categoryId || null
+        }))
+    }
+
+    // Handle food category selection
+    const handleFoodCategoryChange = (categoryId: string) => {
+        setFormData(prev => ({
+            ...prev,
+            food_category_id: categoryId === 'none' ? null : categoryId
         }))
     }
 
@@ -627,7 +652,7 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label htmlFor="category_id">Category</Label>
+                                    <Label htmlFor="category_id">Restaurant Category</Label>
                                     <div className="flex items-center">
                                         <Tag className="mr-2 h-4 w-4 text-muted-foreground" />
                                         {isLoadingCategories || !formData.restaurant_id ? (
@@ -639,7 +664,7 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
                                                 disabled={isPending || !formData.restaurant_id}
                                             >
                                                 <SelectTrigger>
-                                                    <SelectValue placeholder="Select a category" />
+                                                    <SelectValue placeholder="Select a restaurant category" />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="none">No Category</SelectItem>
@@ -657,6 +682,37 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
                                             Select a restaurant first to see available categories
                                         </p>
                                     )}
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="food_category_id">Food Category</Label>
+                                    <div className="flex items-center">
+                                        <Utensils className="mr-2 h-4 w-4 text-muted-foreground" />
+                                        {isLoadingFoodCategories ? (
+                                            <Skeleton className="h-10 w-full" />
+                                        ) : (
+                                            <Select
+                                                value={formData.food_category_id || ''}
+                                                onValueChange={handleFoodCategoryChange}
+                                                disabled={isPending}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select a food category" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="none">No Food Category</SelectItem>
+                                                    {foodCategories?.map((category: { id: string; name: string }) => (
+                                                        <SelectItem key={category.id} value={category.id}>
+                                                            {category.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        Food categories help users find similar foods across restaurants
+                                    </p>
                                 </div>
                             </CardContent>
                         </Card>

@@ -43,6 +43,7 @@ export const menuItems = [
     submenu: [
       { title: 'All Menu Items', path: '/admin/menu-items', icon: <Utensils size={16} /> },
       { title: 'Add Menu Item', path: '/admin/menu-items/new', icon: <Plus size={16} /> },
+      { title: 'Food Categories', path: '/admin/food-categories', icon: <ListOrdered size={16} /> },
     ]
   },
   {
@@ -74,6 +75,7 @@ export const menuItems = [
     submenu: [
       { title: 'All Locations', path: '/admin/locations', icon: <MapPin size={16} /> },
       { title: 'Add Location', path: '/admin/locations/new', icon: <Plus size={16} /> },
+      { title: 'Travel Times', path: '/admin/travel-times', icon: <Clock size={16} /> },
     ]
   },
   {

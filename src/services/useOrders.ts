@@ -3,6 +3,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Database } from '@/types/supabase'
 import { PostgrestError } from '@supabase/supabase-js'
+import { useTravelTimes } from './useTravelTimes'
 
 type Order = Database['public']['Tables']['orders']['Row']
 type OrderInsert = Database['public']['Tables']['orders']['Insert']
@@ -26,6 +27,7 @@ type OrderFilters = {
 export function useOrders(filters?: OrderFilters) {
     const supabase = createClientComponentClient<Database>()
     const queryClient = useQueryClient()
+    const { getEstimatedDeliveryTime } = useTravelTimes()
     const defaultFilters: OrderFilters = {
         searchTerm: '',
         userId: undefined,
@@ -367,6 +369,179 @@ export function useOrders(filters?: OrderFilters) {
         }
     })
 
+    // Confirm order pickup and calculate estimated delivery time
+    const confirmOrderPickup = useMutation<Order, PostgrestError, { id: string, restaurantId: string, deliveryLocationId: string }>({
+        mutationFn: async ({ id, restaurantId, deliveryLocationId }) => {
+            // Get restaurant location
+            const { data: restaurant, error: restaurantError } = await supabase
+                .from('restaurants')
+                .select('location_id')
+                .eq('id', restaurantId)
+                .single()
+
+            if (restaurantError) throw restaurantError
+
+            // Calculate estimated delivery time based on restaurant location and delivery location
+            const estimatedMinutes = await getEstimatedDeliveryTime(
+                restaurant.location_id,
+                deliveryLocationId
+            )
+
+            // Calculate estimated delivery time
+            const now = new Date()
+            const estimatedDeliveryAt = new Date(now.getTime() + estimatedMinutes * 60000) // convert minutes to milliseconds
+
+            // Update order with pickup confirmation and estimated delivery time
+            const { data, error } = await supabase
+                .from('orders')
+                .update({
+                    pickup_confirmed_at: now.toISOString(),
+                    estimated_delivery_minutes: estimatedMinutes,
+                    estimated_delivery_at: estimatedDeliveryAt.toISOString(),
+                    delivery_status: 'picked_up',
+                    order_status: 'in_transit'
+                })
+                .eq('id', id)
+                .select()
+                .single()
+
+            if (error) throw error
+            return data
+        },
+        onSuccess: (data) => {
+            // Only invalidate the specific order query
+            queryClient.invalidateQueries({ queryKey: ['order', data.id] })
+
+            // Update the order in the cache without refetching
+            queryClient.setQueryData(['order', data.id], data)
+
+            // Update the order in the orders list cache if it exists
+            queryClient.setQueriesData({ queryKey: ['orders'] }, (oldData: any) => {
+                if (!oldData) return oldData
+                return oldData.map((order: Order) =>
+                    order.id === data.id ? { ...order, ...data } : order
+                )
+            })
+        }
+    })
+
+    // Confirm order delivery
+    const confirmOrderDelivery = useMutation<Order, PostgrestError, string>({
+        mutationFn: async (id: string) => {
+            const now = new Date()
+
+            const { data, error } = await supabase
+                .from('orders')
+                .update({
+                    delivery_confirmed_at: now.toISOString(),
+                    delivery_status: 'delivered',
+                    order_status: 'completed'
+                })
+                .eq('id', id)
+                .select()
+                .single()
+
+            if (error) throw error
+            return data
+        },
+        onSuccess: (data) => {
+            // Only invalidate the specific order query
+            queryClient.invalidateQueries({ queryKey: ['order', data.id] })
+
+            // Update the order in the cache without refetching
+            queryClient.setQueryData(['order', data.id], data)
+
+            // Update the order in the orders list cache if it exists
+            queryClient.setQueriesData({ queryKey: ['orders'] }, (oldData: any) => {
+                if (!oldData) return oldData
+                return oldData.map((order: Order) =>
+                    order.id === data.id ? { ...order, ...data } : order
+                )
+            })
+        }
+    })
+
+    // Get order delivery progress percentage
+    const getOrderDeliveryProgress = (order: Order): number => {
+        if (!order.pickup_confirmed_at) {
+            return 0
+        }
+
+        if (order.delivery_confirmed_at) {
+            return 100
+        }
+
+        if (!order.estimated_delivery_at) {
+            return 50 // Default to 50% if no estimated delivery time
+        }
+
+        const pickupTime = new Date(order.pickup_confirmed_at).getTime()
+        const estimatedDeliveryTime = new Date(order.estimated_delivery_at).getTime()
+        const currentTime = new Date().getTime()
+        const totalTime = estimatedDeliveryTime - pickupTime
+
+        if (totalTime <= 0) {
+            return 90 // Avoid division by zero
+        }
+
+        const elapsedTime = currentTime - pickupTime
+        let progress = Math.round((elapsedTime / totalTime) * 100)
+
+        // Cap progress at 99% until delivery is confirmed
+        if (progress >= 100 && !order.delivery_confirmed_at) {
+            progress = 99
+        }
+
+        return progress
+    }
+
+    // Get order delivery status message based on progress
+    const getOrderDeliveryStatusMessage = (order: Order): string => {
+        if (!order.pickup_confirmed_at) {
+            return 'Preparing order'
+        }
+
+        if (order.delivery_confirmed_at) {
+            return 'Delivered'
+        }
+
+        const progress = getOrderDeliveryProgress(order)
+
+        if (progress < 25) {
+            return 'Order picked up, on the way to you'
+        } else if (progress < 50) {
+            return 'Rider is on the way'
+        } else if (progress < 75) {
+            return 'Rider is halfway there'
+        } else if (progress < 90) {
+            return 'Your order is almost there'
+        } else {
+            return 'Arriving very soon'
+        }
+    }
+
+    // Get estimated minutes remaining
+    const getEstimatedMinutesRemaining = (order: Order): number | null => {
+        if (!order.pickup_confirmed_at || !order.estimated_delivery_at) {
+            return null
+        }
+
+        if (order.delivery_confirmed_at) {
+            return 0
+        }
+
+        const estimatedDeliveryTime = new Date(order.estimated_delivery_at).getTime()
+        const currentTime = new Date().getTime()
+        const remainingTime = estimatedDeliveryTime - currentTime
+
+        if (remainingTime <= 0) {
+            return 1 // At least 1 minute
+        }
+
+        // Convert ms to minutes and round up
+        return Math.ceil(remainingTime / 60000)
+    }
+
     return {
         orders,
         isLoading,
@@ -379,6 +554,11 @@ export function useOrders(filters?: OrderFilters) {
         addOrderItem,
         updateOrderItem,
         removeOrderItem,
+        confirmOrderPickup,
+        confirmOrderDelivery,
+        getOrderDeliveryProgress,
+        getOrderDeliveryStatusMessage,
+        getEstimatedMinutesRemaining,
         refetch
     }
 } 
