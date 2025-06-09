@@ -179,11 +179,29 @@ export default function RestaurantForm({ restaurant, user }: RestaurantFormProps
                 throw new Error('Owner ID is required')
             }
 
+            // Extract only the updatable fields
+            const updateData = {
+                name: formData.name,
+                description: formData.description,
+                address: formData.address,
+                phone_number: formData.phone_number,
+                email: formData.email,
+                location_id: formData.location_id,
+                is_active: formData.is_active,
+                is_featured: formData.is_featured,
+                cuisine_types: formData.cuisine_types,
+                owner_id: formData.owner_id,
+                opening_hours: formData.opening_hours
+            }
+
             if (isEditMode) {
-                await updateRestaurant.mutateAsync(formData as RestaurantUpdate)
+                await updateRestaurant.mutateAsync({
+                    id: restaurant?.id,
+                    ...updateData
+                } as RestaurantUpdate)
                 toast.success('Restaurant updated successfully')
             } else {
-                await createRestaurant.mutateAsync(formData as RestaurantInsert)
+                await createRestaurant.mutateAsync(updateData as RestaurantInsert)
                 toast.success('Restaurant created successfully')
             }
 

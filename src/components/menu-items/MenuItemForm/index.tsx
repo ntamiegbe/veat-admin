@@ -59,13 +59,16 @@ type CustomizationOption = {
 interface MenuItemFormProps {
     menuItem?: MenuItem;
     restaurantId?: string;
+    hideRestaurantSelection?: boolean;
 }
 
-export default function MenuItemForm({ menuItem, restaurantId: initialRestaurantId }: MenuItemFormProps) {
+export default function MenuItemForm({ menuItem, restaurantId: initialRestaurantId, hideRestaurantSelection = false }: MenuItemFormProps) {
     const router = useRouter()
     const supabase = createClientComponentClient<Database>()
     const fileInputRef = useRef<HTMLInputElement>(null)
     const isEditMode = !!menuItem
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [isUploading, setIsUploading] = useState(false)
 
     // Get restaurants for selection
     const { restaurants, isLoading: isLoadingRestaurants } = useRestaurants()
@@ -171,7 +174,6 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
     // Image upload state
     const [imageFile, setImageFile] = useState<File | null>(null)
     const [imagePreview, setImagePreview] = useState<string | null>(null)
-    const [isUploading, setIsUploading] = useState(false)
     const initialLoadRef = useRef(false)
 
     // Fill form with menu item data if in edit mode - only run once
@@ -432,57 +434,22 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
             return
         }
 
+        setIsSubmitting(true)
+
         try {
-            // Upload image if new file is selected
             let finalImageUrl = formData.image_url
 
-            // Check if restaurant has changed and we need to move the image
-            const restaurantChanged = isEditMode && menuItem && menuItem.restaurant_id !== formData.restaurant_id;
-            const needsImageMove = restaurantChanged && formData.image_url && !imageFile;
-
-            if (imageFile || needsImageMove) {
+            if (imageFile) {
                 setIsUploading(true);
-
-                // If we're moving an existing image to a new restaurant folder
-                if (needsImageMove && formData.image_url) {
-                    try {
-                        // Extract the filename from the existing URL
-                        const urlParts = formData.image_url.split('/');
-                        const fileName = urlParts[urlParts.length - 1];
-
-                        // Create a new path in the new restaurant's folder
-                        const filePath = `menu-items/${formData.restaurant_id}/${fileName}`;
-
-                        // We need to fetch the image and re-upload it to the new location
-                        const response = await fetch(formData.image_url);
-                        const blob = await response.blob();
-                        const file = new File([blob], fileName, { type: blob.type });
-
-                        console.log(`Moving image to new restaurant folder: ${filePath}`);
-                        finalImageUrl = await uploadImage(file, filePath);
-                    } catch (error) {
-                        console.error('Image move error:', error);
-                        toast.error('Failed to move image to new restaurant folder');
-                        setIsUploading(false);
-                        return;
-                    }
+                try {
+                    const path = `${formData.restaurant_id}/${Date.now()}-${imageFile.name}`
+                    finalImageUrl = await uploadImage(imageFile, path)
+                    setIsUploading(false);
+                } catch (error) {
+                    console.error('Image upload error:', error)
+                    toast.error('Failed to upload image')
+                    setIsUploading(false);
                 }
-                // Regular new image upload
-                else if (imageFile) {
-                    const fileName = `${Date.now()}-${imageFile.name.replace(/\s+/g, '_')}`;
-                    const filePath = `menu-items/${formData.restaurant_id}/${fileName}`;
-
-                    try {
-                        finalImageUrl = await uploadImage(imageFile, filePath);
-                    } catch (error) {
-                        console.error('Image upload error:', error);
-                        toast.error('Failed to upload image');
-                        setIsUploading(false);
-                        return;
-                    }
-                }
-
-                setIsUploading(false);
             }
 
             // Prepare data for save
@@ -504,11 +471,18 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
                 toast.success('Menu item created successfully')
             }
 
-            // Navigate back to menu items list
-            router.push('/admin/menu-items')
+            // Navigate back based on context
+            const path = location.pathname
+            if (path.includes('/restaurant-owner/')) {
+                router.push(`/restaurant-owner/restaurants/${formData.restaurant_id}/menu`)
+            } else {
+                router.push('/admin/menu-items')
+            }
         } catch (error) {
             console.error('Save error:', error)
             toast.error(error instanceof Error ? error.message : 'Failed to save menu item')
+        } finally {
+            setIsSubmitting(false)
         }
     }
 
@@ -524,7 +498,7 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 p-4">
             <div className="flex items-center justify-between">
                 <div className="space-y-1">
                     <h2 className="text-3xl font-bold tracking-tight">
@@ -619,37 +593,39 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
                                 <CardTitle>Restaurant & Category</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="restaurant_id">Restaurant <span className="text-destructive">*</span></Label>
-                                    <div className="flex items-center">
-                                        <Building2 className="mr-2 h-4 w-4 text-muted-foreground" />
-                                        {isLoadingRestaurants ? (
-                                            <Skeleton className="h-10 w-full" />
-                                        ) : (
-                                            <Select
-                                                value={formData.restaurant_id || ''}
-                                                onValueChange={handleRestaurantChange}
-                                                disabled={isPending}
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Select a restaurant" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {restaurants?.map(restaurant => (
-                                                        <SelectItem key={restaurant.id} value={restaurant.id}>
-                                                            {restaurant.name}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                {!hideRestaurantSelection && (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="restaurant_id">Restaurant <span className="text-destructive">*</span></Label>
+                                        <div className="flex items-center">
+                                            <Building2 className="mr-2 h-4 w-4 text-muted-foreground" />
+                                            {isLoadingRestaurants ? (
+                                                <Skeleton className="h-10 w-full" />
+                                            ) : (
+                                                <Select
+                                                    value={formData.restaurant_id || ''}
+                                                    onValueChange={handleRestaurantChange}
+                                                    disabled={isPending}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select a restaurant" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {restaurants?.map(restaurant => (
+                                                            <SelectItem key={restaurant.id} value={restaurant.id}>
+                                                                {restaurant.name}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            )}
+                                        </div>
+                                        {isEditMode && (
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                You can now change the restaurant for this menu item
+                                            </p>
                                         )}
                                     </div>
-                                    {isEditMode && (
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                            You can now change the restaurant for this menu item
-                                        </p>
-                                    )}
-                                </div>
+                                )}
 
                                 <div className="space-y-2">
                                     <Label htmlFor="category_id">Restaurant Category</Label>
@@ -973,16 +949,16 @@ export default function MenuItemForm({ menuItem, restaurantId: initialRestaurant
                             type="button"
                             variant="outline"
                             onClick={() => router.back()}
-                            disabled={isPending}
+                            disabled={isSubmitting}
                         >
                             Cancel
                         </Button>
 
                         <Button
                             type="submit"
-                            disabled={isPending}
+                            disabled={isSubmitting}
                         >
-                            {isPending ? (
+                            {isSubmitting ? (
                                 <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     {isUploading ? 'Uploading...' : isEditMode ? 'Updating...' : 'Creating...'}

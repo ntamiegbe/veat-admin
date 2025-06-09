@@ -53,7 +53,7 @@ export default function RestaurantMenuItems({ restaurantId }: RestaurantMenuItem
         isLoading,
         fetchError,
         deleteMenuItem,
-        toggleAvailability,
+        toggleMenuItemAvailability: toggleAvailability,
         refetch
     } = useMenuItems({
         restaurantId,
@@ -242,10 +242,10 @@ export default function RestaurantMenuItems({ restaurantId }: RestaurantMenuItem
                                                 <p className="text-sm text-muted-foreground line-clamp-2">{item.description}</p>
                                             )}
 
-                                            {item.category && (
+                                            {item.menu_categories && (
                                                 <Badge variant="outline" className="flex items-center gap-1">
                                                     <Tag className="h-3 w-3" />
-                                                    <span className="truncate max-w-[100px]">{item.category.name}</span>
+                                                    <span className="truncate max-w-[100px]">{item.menu_categories.name}</span>
                                                 </Badge>
                                             )}
                                         </CardContent>

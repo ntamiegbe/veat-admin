@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useAuth, useRequireRole } from '@/services/useAuth'
+import { useMenuItems } from '@/services/useMenuItems'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -20,6 +21,8 @@ import {
     ChevronRight
 } from 'lucide-react'
 import type { Database } from '@/types/supabase'
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
 
 type Restaurant = Database['public']['Tables']['restaurants']['Row']
 
@@ -35,6 +38,12 @@ export default function RestaurantOwnerDashboard() {
             setSelectedRestaurant(userRestaurants[0])
         }
     }, [userRestaurants, selectedRestaurant])
+
+    // Fetch menu items for the selected restaurant
+    const { menuItems, isLoading: isMenuLoading } = useMenuItems({
+        restaurantId: selectedRestaurant?.id,
+        isAvailable: undefined, // Show all items
+    })
 
     if (isLoading || isAuthChecking) {
         return (
@@ -278,9 +287,74 @@ export default function RestaurantOwnerDashboard() {
                                     </Button>
                                 </CardHeader>
                                 <CardContent>
-                                    <p className="text-center text-muted-foreground py-8">
-                                        No menu items found. Add your first menu item to get started.
-                                    </p>
+                                    {isMenuLoading ? (
+                                        <div className="text-center py-8">Loading...</div>
+                                    ) : menuItems?.length === 0 ? (
+                                        <div className="text-center py-8">
+                                            <p className="text-muted-foreground">
+                                                No menu items found. Add your first menu item to get started.
+                                            </p>
+                                            <Button
+                                                variant="outline"
+                                                className="mt-4"
+                                                onClick={() => router.push(`/restaurant-owner/restaurants/${selectedRestaurant.id}/menu/new`)}
+                                            >
+                                                <Plus className="mr-2 h-4 w-4" />
+                                                Add First Menu Item
+                                            </Button>
+                                        </div>
+                                    ) : (
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableCell>Name</TableCell>
+                                                    <TableCell>Category</TableCell>
+                                                    <TableCell>Price</TableCell>
+                                                    <TableCell>Status</TableCell>
+                                                    <TableCell className="text-right">Actions</TableCell>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {menuItems?.slice(0, 5).map((item) => (
+                                                    <TableRow key={item.id}>
+                                                        <TableCell className="font-medium">
+                                                            {item.name}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {item.menu_categories?.name || 'Uncategorized'}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            ₦{item.price.toLocaleString()}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Badge variant={item.is_available ? "default" : "secondary"}>
+                                                                {item.is_available ? 'Available' : 'Unavailable'}
+                                                            </Badge>
+                                                        </TableCell>
+                                                        <TableCell className="text-right">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() => router.push(`/restaurant-owner/restaurants/${selectedRestaurant.id}/menu/${item.id}/edit`)}
+                                                            >
+                                                                <Edit className="h-4 w-4" />
+                                                            </Button>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    )}
+                                    {menuItems && menuItems.length > 5 && (
+                                        <div className="mt-4 text-center">
+                                            <Button
+                                                variant="outline"
+                                                onClick={() => router.push(`/restaurant-owner/restaurants/${selectedRestaurant.id}/menu`)}
+                                            >
+                                                View All Menu Items
+                                            </Button>
+                                        </div>
+                                    )}
                                 </CardContent>
                             </Card>
                         </TabsContent>

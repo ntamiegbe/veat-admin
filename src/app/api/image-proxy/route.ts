@@ -5,11 +5,11 @@ export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
         const path = searchParams.get('path');
+        const bucket = searchParams.get('bucket') || 'menu-images'; // Default to menu-images for backward compatibility
 
         if (!path) {
             return new NextResponse('Missing path parameter', { status: 400 });
         }
-
 
         // Create a Supabase client with server-side credentials
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
         // Get the image data from Supabase storage
         const { data, error } = await supabase.storage
-            .from('menu-images')
+            .from(bucket)
             .download(path);
 
         if (error) {

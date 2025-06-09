@@ -10,15 +10,15 @@ type MenuItemInsert = Database['public']['Tables']['menu_items']['Insert']
 type MenuItemUpdate = Database['public']['Tables']['menu_items']['Update']
 
 type MenuItemFilters = {
-    searchTerm?: string
     restaurantId?: string
     categoryId?: string
+    foodCategoryId?: string
+    searchTerm?: string
     isAvailable?: boolean
     isFeatured?: boolean
-    minPrice?: number
-    maxPrice?: number
-    sortBy?: 'name' | 'price' | 'created_at' | 'total_orders' | 'average_rating'
+    sortBy?: 'name' | 'price' | 'created_at' | 'average_rating' | 'total_orders'
     sortOrder?: 'asc' | 'desc'
+    limit?: number
 }
 
 export function useMenuItems(filters?: MenuItemFilters) {
@@ -27,57 +27,59 @@ export function useMenuItems(filters?: MenuItemFilters) {
     const { uploadFile } = useStorage()
     const defaultFilters: MenuItemFilters = {
         searchTerm: '',
-        restaurantId: undefined,
-        categoryId: undefined,
         isAvailable: undefined,
         isFeatured: undefined,
-        minPrice: undefined,
-        maxPrice: undefined,
-        sortBy: 'name',
-        sortOrder: 'asc',
+        sortBy: 'created_at',
+        sortOrder: 'desc',
+        limit: undefined,
         ...filters
     }
 
-    // Fetch menu items with related data and filtering
+    // Fetch menu items with filters
     const {
         data: menuItems,
         isLoading,
         error: fetchError,
         refetch
     } = useQuery({
-        queryKey: ['menu-items', defaultFilters],
+        queryKey: ['menuItems', defaultFilters],
         queryFn: async () => {
             let query = supabase
                 .from('menu_items')
                 .select(`
-          *,
-          restaurant:restaurant_id(id, name),
-          category:category_id(id, name)
-        `)
+                    *,
+                    food_categories (
+                        id,
+                        name
+                    ),
+                    menu_categories (
+                        id,
+                        name
+                    )
+                `)
 
-            // Apply filters
+            // Apply restaurant filter
             if (defaultFilters.restaurantId) {
                 query = query.eq('restaurant_id', defaultFilters.restaurantId)
             }
 
+            // Apply category filters
             if (defaultFilters.categoryId) {
                 query = query.eq('category_id', defaultFilters.categoryId)
             }
 
+            if (defaultFilters.foodCategoryId) {
+                query = query.eq('food_category_id', defaultFilters.foodCategoryId)
+            }
+
+            // Apply availability filter
             if (defaultFilters.isAvailable !== undefined) {
                 query = query.eq('is_available', defaultFilters.isAvailable)
             }
 
+            // Apply featured filter
             if (defaultFilters.isFeatured !== undefined) {
                 query = query.eq('is_featured', defaultFilters.isFeatured)
-            }
-
-            if (defaultFilters.minPrice !== undefined) {
-                query = query.gte('price', defaultFilters.minPrice)
-            }
-
-            if (defaultFilters.maxPrice !== undefined) {
-                query = query.lte('price', defaultFilters.maxPrice)
             }
 
             // Apply search
@@ -92,70 +94,43 @@ export function useMenuItems(filters?: MenuItemFilters) {
                 })
             }
 
+            // Apply limit
+            if (defaultFilters.limit) {
+                query = query.limit(defaultFilters.limit)
+            }
+
             const { data, error } = await query
 
             if (error) throw error
             return data
-        },
-        staleTime: 1000 * 60 * 5, // 5 minutes
-        refetchOnWindowFocus: false,
-        refetchOnMount: false,
-        refetchOnReconnect: false,
-        retry: 1,
-        gcTime: 1000 * 60 * 10, // 10 minutes
+        }
     })
 
-    // Get a menu item by ID with localStorage caching
+    // Get menu item by ID
     const getMenuItemById = async (id: string) => {
-        // Try to get from localStorage first
-        const cachedData = typeof window !== 'undefined' ? localStorage.getItem(`menu-item-${id}`) : null;
-        if (cachedData) {
-            try {
-                const { data, timestamp } = JSON.parse(cachedData);
-                const isStale = Date.now() - timestamp > 5 * 60 * 1000; // 5 minutes
-
-                if (!isStale) {
-                    console.log(`Using cached data for menu item ${id}`);
-                    return data;
-                }
-            } catch (e) {
-                console.error('Error parsing cached menu item data:', e);
-                // Continue to fetch from API if parsing fails
-            }
-        }
-
-        console.log(`Fetching menu item ${id} from API`);
         const { data, error } = await supabase
             .from('menu_items')
             .select(`
                 *,
-                restaurant:restaurant_id(id, name),
-                category:category_id(id, name)
+                food_categories (
+                    id,
+                    name
+                ),
+                menu_categories (
+                    id,
+                    name
+                )
             `)
             .eq('id', id)
-            .single();
+            .single()
 
-        if (error) throw error;
-
-        // Save to localStorage with timestamp
-        if (typeof window !== 'undefined') {
-            localStorage.setItem(`menu-item-${id}`, JSON.stringify({
-                data,
-                timestamp: Date.now()
-            }));
-        }
-
-        return data;
+        if (error) throw error
+        return data
     }
 
     // Create menu item
     const createMenuItem = useMutation<MenuItem, PostgrestError, MenuItemInsert>({
         mutationFn: async (newMenuItem: MenuItemInsert) => {
-            // First make sure we have the necessary fields
-            if (!newMenuItem.name || !newMenuItem.restaurant_id) {
-                throw new Error('Menu item name and restaurant are required')
-            }
-
             const { data, error } = await supabase
                 .from('menu_items')
                 .insert(newMenuItem)
@@ -163,10 +138,14 @@ export function useMenuItems(filters?: MenuItemFilters) {
                 .single()
 
             if (error) throw error
+            if (!data) throw new Error('No data returned from creation')
+
             return data
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['menu-items'] })
+        onSuccess: (newMenuItem) => {
+            queryClient.setQueryData<MenuItem[]>(['menuItems', defaultFilters], (old) =>
+                old ? [newMenuItem, ...old] : [newMenuItem]
+            )
         }
     })
 
@@ -181,10 +160,17 @@ export function useMenuItems(filters?: MenuItemFilters) {
                 .single()
 
             if (error) throw error
+            if (!data) throw new Error('No data returned from update')
+
             return data
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['menu-items'] })
+        onSuccess: (updatedMenuItem) => {
+            queryClient.setQueryData<MenuItem[]>(['menuItems', defaultFilters], (old) => {
+                if (!old) return [updatedMenuItem]
+                return old.map(item =>
+                    item.id === updatedMenuItem.id ? updatedMenuItem : item
+                )
+            })
         }
     })
 
@@ -200,19 +186,15 @@ export function useMenuItems(filters?: MenuItemFilters) {
             return id
         },
         onSuccess: (id) => {
-            // Remove the specific menu item from the cache
-            queryClient.removeQueries({ queryKey: ['menu-item', id] })
-
-            // Update the menu items list cache to remove the deleted item
-            queryClient.setQueriesData({ queryKey: ['menu-items'] }, (oldData: any) => {
-                if (!oldData) return oldData
-                return oldData.filter((item: MenuItem) => item.id !== id)
+            queryClient.setQueryData<MenuItem[]>(['menuItems', defaultFilters], (old) => {
+                if (!old) return []
+                return old.filter(item => item.id !== id)
             })
         }
     })
 
     // Toggle menu item availability
-    const toggleAvailability = useMutation<MenuItem, PostgrestError, { id: string, isAvailable: boolean }>({
+    const toggleMenuItemAvailability = useMutation<MenuItem, PostgrestError, { id: string, isAvailable: boolean }>({
         mutationFn: async ({ id, isAvailable }) => {
             const { data, error } = await supabase
                 .from('menu_items')
@@ -222,27 +204,22 @@ export function useMenuItems(filters?: MenuItemFilters) {
                 .single()
 
             if (error) throw error
+            if (!data) throw new Error('No data returned from update')
+
             return data
         },
-        onSuccess: (data) => {
-            // Only invalidate the specific menu item query
-            queryClient.invalidateQueries({ queryKey: ['menu-item', data.id] })
-
-            // Update the menu item in the cache without refetching
-            queryClient.setQueryData(['menu-item', data.id], data)
-
-            // Update the menu item in the menu-items list cache if it exists
-            queryClient.setQueriesData({ queryKey: ['menu-items'] }, (oldData: any) => {
-                if (!oldData) return oldData
-                return oldData.map((item: MenuItem) =>
-                    item.id === data.id ? { ...item, ...data } : item
+        onSuccess: (updatedMenuItem) => {
+            queryClient.setQueryData<MenuItem[]>(['menuItems', defaultFilters], (old) => {
+                if (!old) return [updatedMenuItem]
+                return old.map(item =>
+                    item.id === updatedMenuItem.id ? updatedMenuItem : item
                 )
             })
         }
     })
 
     // Toggle menu item featured status
-    const toggleFeatured = useMutation<MenuItem, PostgrestError, { id: string, isFeatured: boolean }>({
+    const toggleMenuItemFeatured = useMutation<MenuItem, PostgrestError, { id: string, isFeatured: boolean }>({
         mutationFn: async ({ id, isFeatured }) => {
             const { data, error } = await supabase
                 .from('menu_items')
@@ -252,20 +229,15 @@ export function useMenuItems(filters?: MenuItemFilters) {
                 .single()
 
             if (error) throw error
+            if (!data) throw new Error('No data returned from update')
+
             return data
         },
-        onSuccess: (data) => {
-            // Only invalidate the specific menu item query
-            queryClient.invalidateQueries({ queryKey: ['menu-item', data.id] })
-
-            // Update the menu item in the cache without refetching
-            queryClient.setQueryData(['menu-item', data.id], data)
-
-            // Update the menu item in the menu-items list cache if it exists
-            queryClient.setQueriesData({ queryKey: ['menu-items'] }, (oldData: any) => {
-                if (!oldData) return oldData
-                return oldData.map((item: MenuItem) =>
-                    item.id === data.id ? { ...item, ...data } : item
+        onSuccess: (updatedMenuItem) => {
+            queryClient.setQueryData<MenuItem[]>(['menuItems', defaultFilters], (old) => {
+                if (!old) return [updatedMenuItem]
+                return old.map(item =>
+                    item.id === updatedMenuItem.id ? updatedMenuItem : item
                 )
             })
         }
@@ -285,12 +257,12 @@ export function useMenuItems(filters?: MenuItemFilters) {
         menuItems,
         isLoading,
         fetchError,
+        getMenuItemById,
         createMenuItem,
         updateMenuItem,
         deleteMenuItem,
-        getMenuItemById,
-        toggleAvailability,
-        toggleFeatured,
+        toggleMenuItemAvailability,
+        toggleMenuItemFeatured,
         uploadImage,
         refetch
     }

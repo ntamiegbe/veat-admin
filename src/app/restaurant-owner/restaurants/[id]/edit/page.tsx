@@ -7,7 +7,6 @@ import {
     Card,
     CardContent,
     CardDescription,
-    CardFooter,
     CardHeader,
     CardTitle
 } from '@/components/ui/card'
@@ -21,6 +20,7 @@ import { toast } from 'sonner'
 import { ArrowLeft, Save } from 'lucide-react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { Database } from '@/types/supabase'
+import RestaurantImagesForm from '@/components/resturants/RestaurantImagesForm'
 
 type RestaurantUpdate = Database['public']['Tables']['restaurants']['Update']
 
@@ -77,7 +77,9 @@ export default function EditRestaurantPage() {
                     is_active: data.is_active || false,
                     is_featured: data.is_featured || false,
                     minimum_order_amount: data.minimum_order_amount || 0,
-                    average_preparation_time: data.average_preparation_time || 0
+                    average_preparation_time: data.average_preparation_time || 0,
+                    logo_url: data.logo_url,
+                    banner_url: data.banner_url
                 })
             } catch (error) {
                 console.error('Error fetching restaurant:', error)
@@ -134,6 +136,24 @@ export default function EditRestaurantPage() {
             toast.error('Failed to update restaurant')
         } finally {
             setIsSaving(false)
+        }
+    }
+
+    const handleImagesUpdate = async (updates: { logo_url?: string | null; banner_url?: string | null }) => {
+        try {
+            const { error } = await supabase
+                .from('restaurants')
+                .update(updates)
+                .eq('id', restaurantId)
+
+            if (error) throw error
+
+            // Update local state
+            setFormData(prev => ({ ...prev, ...updates }))
+            toast.success('Restaurant images updated successfully')
+        } catch (error) {
+            console.error('Error updating restaurant images:', error)
+            throw error
         }
     }
 
@@ -211,17 +231,6 @@ export default function EditRestaurantPage() {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* <div className="space-y-2">
-                                <Label htmlFor="cuisine_type">Cuisine Type</Label>
-                                <Input
-                                    id="cuisine_type"
-                                    name="cuisine_type"
-                                    value={formData.cuisine_type || ''}
-                                    onChange={handleInputChange}
-                                    placeholder="e.g. Italian, Chinese, Mexican"
-                                />
-                            </div> */}
-
                             <div className="space-y-2">
                                 <Label htmlFor="phone_number">Phone Number</Label>
                                 <Input
@@ -232,100 +241,83 @@ export default function EditRestaurantPage() {
                                     placeholder="Restaurant contact number"
                                 />
                             </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="address">Address</Label>
-                            <Textarea
-                                id="address"
-                                name="address"
-                                value={formData.address || ''}
-                                onChange={handleInputChange}
-                                placeholder="Restaurant address"
-                                rows={2}
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {/* <div className="space-y-2">
-                                <Label htmlFor="delivery_fee">Delivery Fee ($)</Label>
-                                <Input
-                                    id="delivery_fee"
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={formData.delivery_fee || 0}
-                                    onChange={(e) => handleNumericChange(e, 'delivery_fee')}
-                                    placeholder="0.00"
-                                />
-                            </div> */}
 
                             <div className="space-y-2">
-                                <Label htmlFor="minimum_order_amount">Minimum Order ($)</Label>
+                                <Label htmlFor="address">Address</Label>
+                                <Input
+                                    id="address"
+                                    name="address"
+                                    value={formData.address || ''}
+                                    onChange={handleInputChange}
+                                    placeholder="Restaurant address"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="minimum_order_amount">Minimum Order Amount</Label>
                                 <Input
                                     id="minimum_order_amount"
                                     type="number"
-                                    step="0.01"
-                                    min="0"
                                     value={formData.minimum_order_amount || 0}
                                     onChange={(e) => handleNumericChange(e, 'minimum_order_amount')}
-                                    placeholder="0.00"
+                                    placeholder="0"
+                                    min="0"
+                                    step="0.01"
                                 />
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="average_preparation_time">Avg. Prep Time (min)</Label>
+                                <Label htmlFor="average_preparation_time">Average Preparation Time (minutes)</Label>
                                 <Input
                                     id="average_preparation_time"
                                     type="number"
-                                    min="0"
                                     value={formData.average_preparation_time || 0}
                                     onChange={(e) => handleNumericChange(e, 'average_preparation_time')}
                                     placeholder="0"
+                                    min="0"
+                                    step="1"
                                 />
                             </div>
                         </div>
 
                         <div className="flex items-center justify-between">
-                            <div className="space-y-0.5">
-                                <Label htmlFor="is_active">Active Status</Label>
-                                <p className="text-sm text-muted-foreground">
-                                    Inactive restaurants won&apos;t be shown to customers
-                                </p>
+                            <div className="flex items-center space-x-2">
+                                <Switch
+                                    id="is_active"
+                                    checked={formData.is_active || false}
+                                    onCheckedChange={handleSwitchChange('is_active')}
+                                />
+                                <Label htmlFor="is_active">Active</Label>
                             </div>
-                            <Switch
-                                id="is_active"
-                                checked={!!formData.is_active}
-                                onCheckedChange={handleSwitchChange('is_active')}
-                            />
+                        </div>
+
+                        <div className="flex justify-end">
+                            <Button
+                                type="submit"
+                                disabled={isSaving}
+                            >
+                                {isSaving ? (
+                                    <>Saving...</>
+                                ) : (
+                                    <>
+                                        <Save className="mr-2 h-4 w-4" />
+                                        Save Changes
+                                    </>
+                                )}
+                            </Button>
                         </div>
                     </form>
                 </CardContent>
-                <CardFooter className="flex justify-end gap-4">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => router.push('/restaurant-owner/dashboard')}
-                        disabled={isSaving}
-                    >
-                        Cancel
-                    </Button>
-                    <Button
-                        type="submit"
-                        form="restaurant-form"
-                        disabled={isSaving}
-                    >
-                        {isSaving ? (
-                            'Saving...'
-                        ) : (
-                            <>
-                                <Save className="h-4 w-4 mr-2" />
-                                Save Changes
-                            </>
-                        )}
-                    </Button>
-                </CardFooter>
             </Card>
+
+            <RestaurantImagesForm
+                restaurantId={restaurantId}
+                logoUrl={formData.logo_url || null}
+                bannerUrl={formData.banner_url || null}
+                onImagesUpdate={handleImagesUpdate}
+            />
         </div>
     )
 } 

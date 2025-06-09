@@ -42,7 +42,7 @@ interface MenuItemCardProps {
 
 export default function MenuItemCard({ item, onDelete }: MenuItemCardProps) {
     const router = useRouter()
-    const { toggleAvailability, toggleFeatured } = useMenuItems()
+    const { toggleMenuItemAvailability: toggleAvailability, toggleMenuItemFeatured: toggleFeatured } = useMenuItems()
     const [isUpdating, setIsUpdating] = useState(false)
 
     // Format price as currency

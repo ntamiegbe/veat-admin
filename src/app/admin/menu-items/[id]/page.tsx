@@ -108,8 +108,8 @@ export default function MenuItemDetailsPage() {
 
     const {
         deleteMenuItem,
-        toggleAvailability,
-        toggleFeatured
+        toggleMenuItemAvailability: toggleAvailability,
+        toggleMenuItemFeatured: toggleFeatured
     } = useMenuItems()
 
     const handleDelete = async () => {

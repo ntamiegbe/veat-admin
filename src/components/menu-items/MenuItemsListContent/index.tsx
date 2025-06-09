@@ -60,8 +60,8 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { getProxiedImageUrl } from '@/lib/imageUtils'
 
 type MenuItem = Database['public']['Tables']['menu_items']['Row'] & {
-    restaurant?: { id: string, name: string } | null,
-    category?: { id: string, name: string } | null
+    food_categories?: { id: string, name: string } | null,
+    menu_categories?: { id: string, name: string } | null
 }
 
 interface MenuItemsListContentProps {
@@ -163,8 +163,8 @@ export default function MenuItemsListContent({ initialRestaurantId }: MenuItemsL
         isLoading,
         fetchError,
         deleteMenuItem,
-        toggleAvailability,
-        toggleFeatured,
+        toggleMenuItemAvailability: toggleAvailability,
+        toggleMenuItemFeatured: toggleFeatured,
         refetch
     } = useMenuItems(filters)
 
@@ -547,17 +547,17 @@ export default function MenuItemsListContent({ initialRestaurantId }: MenuItemsL
                                     )}
 
                                     <div className="flex flex-wrap gap-2 mt-2">
-                                        {item.restaurant && (
+                                        {item.restaurant_id && restaurants?.find(r => r.id === item.restaurant_id) && (
                                             <Badge variant="outline" className="flex items-center gap-1">
                                                 <Building2 className="h-3 w-3" />
-                                                <span className="truncate max-w-[100px]">{item.restaurant.name}</span>
+                                                <span className="truncate max-w-[100px]">{restaurants.find(r => r.id === item.restaurant_id)?.name}</span>
                                             </Badge>
                                         )}
 
-                                        {item.category && (
+                                        {item.menu_categories && (
                                             <Badge variant="outline" className="flex items-center gap-1">
                                                 <Tag className="h-3 w-3" />
-                                                <span className="truncate max-w-[100px]">{item.category.name}</span>
+                                                <span className="truncate max-w-[100px]">{item.menu_categories.name}</span>
                                             </Badge>
                                         )}
                                     </div>

@@ -9,6 +9,8 @@ import { AlertCircle } from 'lucide-react'
 import type { Database } from '@/types/supabase'
 import { useRestaurants } from '@/services/useRestaurants'
 import RestaurantForm from '@/components/resturants/RestaurantForm'
+import RestaurantImagesForm from '@/components/resturants/RestaurantImagesForm'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 type Restaurant = Database['public']['Tables']['restaurants']['Row']
 
@@ -16,9 +18,10 @@ export default function EditRestaurantPage() {
     const params = useParams()
     const restaurantId = params.id as string
     const { user, isLoading: isAuthLoading } = useAuth()
-    const [restaurant, setRestaurant] = useState<Restaurant | null>(null)
+    const [restaurant, setRestaurant] = useState<Restaurant | undefined>(undefined)
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<Error | null>(null)
+    const supabase = createClientComponentClient<Database>()
 
     const { getRestaurantById } = useRestaurants()
 
@@ -41,6 +44,23 @@ export default function EditRestaurantPage() {
         }
     }, [restaurantId, getRestaurantById])
 
+    const handleImagesUpdate = async (updates: { logo_url?: string | null; banner_url?: string | null }) => {
+        try {
+            const { error } = await supabase
+                .from('restaurants')
+                .update(updates)
+                .eq('id', restaurantId)
+
+            if (error) throw error
+
+            // Update local state
+            setRestaurant(prev => prev ? { ...prev, ...updates } : undefined)
+        } catch (error) {
+            console.error('Error updating restaurant images:', error)
+            throw error
+        }
+    }
+
     if (isAuthLoading || isLoading) {
         return (
             <div className="space-y-6">
@@ -61,33 +81,27 @@ export default function EditRestaurantPage() {
 
     if (error) {
         return (
-            <Card className="border-destructive">
-                <CardContent className="pt-6">
-                    <div className="flex items-center gap-2 text-destructive">
-                        <AlertCircle className="h-5 w-5" />
-                        <h3 className="font-semibold">Error loading restaurant</h3>
-                    </div>
-                    <p className="mt-2">{error.message}</p>
-                </CardContent>
-            </Card>
-        )
-    }
-
-    if (!restaurant) {
-        return (
             <Card>
-                <CardContent className="pt-6">
-                    <div className="flex flex-col items-center justify-center text-center p-6">
-                        <AlertCircle className="h-10 w-10 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-medium">Restaurant not found</h3>
-                        <p className="text-muted-foreground mt-2">
-                            The restaurant you&apos;re trying to edit could not be found.
-                        </p>
-                    </div>
+                <CardContent className="flex items-center gap-2 text-destructive py-6">
+                    <AlertCircle className="h-4 w-4" />
+                    <p>Failed to load restaurant: {error.message}</p>
                 </CardContent>
             </Card>
         )
     }
 
-    return <RestaurantForm restaurant={restaurant} user={user} />
+    return (
+        <div className="space-y-6">
+            <RestaurantForm restaurant={restaurant} user={user} />
+
+            {restaurant && (
+                <RestaurantImagesForm
+                    restaurantId={restaurant.id}
+                    logoUrl={restaurant.logo_url}
+                    bannerUrl={restaurant.banner_url}
+                    onImagesUpdate={handleImagesUpdate}
+                />
+            )}
+        </div>
+    )
 }

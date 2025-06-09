@@ -64,8 +64,30 @@ export function useStorage() {
         }
     }
 
+    /**
+     * Upload a menu item image
+     * @param file Image file to upload
+     * @param path Path inside the menu-images bucket
+     * @returns URL of the uploaded image
+     */
+    const uploadMenuImage = async (file: File, path: string): Promise<string> => {
+        return uploadFile(file, 'menu-images', path)
+    }
+
+    /**
+     * Upload a restaurant image (logo or banner)
+     * @param file Image file to upload
+     * @param path Path inside the restaurant-images bucket
+     * @returns URL of the uploaded image
+     */
+    const uploadRestaurantImage = async (file: File, path: string): Promise<string> => {
+        return uploadFile(file, 'restaurant-images', path)
+    }
+
     return {
         uploadFile,
-        removeFile
+        removeFile,
+        uploadMenuImage,
+        uploadRestaurantImage
     }
 }
