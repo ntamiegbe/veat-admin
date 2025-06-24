@@ -176,7 +176,7 @@ function OrderDetails({ orderId }: { orderId: string }) {
         try {
             await updateOrderStatus.mutateAsync({
                 id: order.id,
-                status: selectedStatus
+                order_status: selectedStatus
             })
 
             toast.success(`Order status updated to ${getStatusDisplayName(selectedStatus)}`)

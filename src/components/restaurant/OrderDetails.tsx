@@ -10,33 +10,37 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
+import { Button } from '@/components/ui/button'
+import { Check, X, ChefHat, Truck } from 'lucide-react'
 
 type OrderDetailsProps = {
     order: {
         id: string
-        created_at: string
+        created_at: string | null
         order_status: string
         total_amount: number
         delivery_fee: number
         delivery_address: string
-        delivery_instructions?: string
-        estimated_delivery_time?: string
+        delivery_instructions: string | null
+        estimated_delivery_time: string | null
+        actual_delivery_time: string | null
         user: {
-            full_name: string
-            phone_number: string
-        }
-        order_items: {
+            id: string | null
+            full_name: string | null
+            phone_number: string | null
+            email: string | null
+        } | null
+        items?: {
             id: string
+            name: string
             quantity: number
-            unit_price: number
-            special_instructions?: string
-            menu_item: {
-                name: string
-            }
+            price: number
         }[]
     }
     open: boolean
     onClose: () => void
+    onUpdateStatus: (status: string) => void
 }
 
 const statusColors = {
@@ -49,8 +53,20 @@ const statusColors = {
     cancelled: 'bg-red-100 text-red-800',
 }
 
-export function OrderDetails({ order, open, onClose }: OrderDetailsProps) {
-    const subtotal = order.order_items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0)
+const getNextStatus = (currentStatus: string): string | null => {
+    const flow = {
+        pending: 'confirmed',
+        confirmed: 'preparing',
+        preparing: 'ready_for_pickup',
+        ready_for_pickup: 'out_for_delivery',
+        out_for_delivery: 'delivered',
+    }
+    return flow[currentStatus as keyof typeof flow] || null
+}
+
+export function OrderDetails({ order, open, onClose, onUpdateStatus }: OrderDetailsProps) {
+    const subtotal = order.items?.reduce((sum, item) => sum + item.quantity * item.price, 0) ?? 0
+    const nextStatus = getNextStatus(order.order_status)
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
@@ -63,22 +79,50 @@ export function OrderDetails({ order, open, onClose }: OrderDetailsProps) {
                         </Badge>
                     </DialogTitle>
                     <DialogDescription>
-                        Order placed on {format(new Date(order.created_at), 'MMM d, yyyy h:mm a')}
+                        {order.created_at ? (
+                            `Order placed on ${format(new Date(order.created_at), 'MMM d, yyyy h:mm a')}`
+                        ) : 'Order date not available'}
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-6">
+                    {/* Quick Actions */}
+                    <div className="flex justify-between items-center">
+                        {nextStatus && (
+                            <Button
+                                onClick={() => onUpdateStatus(nextStatus)}
+                                className="gap-2"
+                                variant="default"
+                            >
+                                {nextStatus === 'preparing' ? <ChefHat className="h-4 w-4" /> :
+                                    nextStatus === 'out_for_delivery' ? <Truck className="h-4 w-4" /> :
+                                        <Check className="h-4 w-4" />}
+                                Mark as {nextStatus.replace(/_/g, ' ')}
+                            </Button>
+                        )}
+                        {order.order_status !== 'cancelled' && order.order_status !== 'delivered' && (
+                            <Button
+                                onClick={() => onUpdateStatus('cancelled')}
+                                variant="destructive"
+                                className="gap-2"
+                            >
+                                <X className="h-4 w-4" />
+                                Cancel Order
+                            </Button>
+                        )}
+                    </div>
+
                     {/* Customer Information */}
                     <div>
                         <h3 className="text-lg font-semibold mb-2">Customer Information</h3>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <p className="text-sm text-gray-500">Name</p>
-                                <p className="font-medium">{order.user.full_name}</p>
+                                <p className="font-medium">{order.user?.full_name || 'N/A'}</p>
                             </div>
                             <div>
                                 <p className="text-sm text-gray-500">Phone</p>
-                                <p className="font-medium">{order.user.phone_number}</p>
+                                <p className="font-medium">{order.user?.phone_number || 'N/A'}</p>
                             </div>
                         </div>
                     </div>
@@ -115,25 +159,18 @@ export function OrderDetails({ order, open, onClose }: OrderDetailsProps) {
                     {/* Order Items */}
                     <div>
                         <h3 className="text-lg font-semibold mb-2">Order Items</h3>
-                        <div className="space-y-4">
-                            {order.order_items.map((item) => (
-                                <div key={item.id} className="flex justify-between items-start">
-                                    <div>
-                                        <p className="font-medium">
-                                            {item.quantity}x {item.menu_item.name}
-                                        </p>
-                                        {item.special_instructions && (
-                                            <p className="text-sm text-gray-500">
-                                                Note: {item.special_instructions}
-                                            </p>
-                                        )}
-                                    </div>
-                                    <p className="font-medium">
-                                        ${(item.quantity * item.unit_price).toFixed(2)}
-                                    </p>
-                                </div>
-                            ))}
-                        </div>
+                        <Table>
+                            <TableBody>
+                                {order.items?.map((item) => (
+                                    <TableRow key={item.id}>
+                                        <TableCell>{item.name}</TableCell>
+                                        <TableCell>{item.quantity}</TableCell>
+                                        <TableCell>₦{item.price.toLocaleString()}</TableCell>
+                                        <TableCell>₦{(item.price * item.quantity).toLocaleString()}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
                     </div>
 
                     <Separator />
@@ -144,16 +181,16 @@ export function OrderDetails({ order, open, onClose }: OrderDetailsProps) {
                         <div className="space-y-2">
                             <div className="flex justify-between">
                                 <p className="text-gray-500">Subtotal</p>
-                                <p className="font-medium">${subtotal.toFixed(2)}</p>
+                                <p className="font-medium">₦{subtotal.toLocaleString()}</p>
                             </div>
                             <div className="flex justify-between">
                                 <p className="text-gray-500">Delivery Fee</p>
-                                <p className="font-medium">${order.delivery_fee.toFixed(2)}</p>
+                                <p className="font-medium">₦{order.delivery_fee.toLocaleString()}</p>
                             </div>
                             <Separator />
                             <div className="flex justify-between">
                                 <p className="font-semibold">Total</p>
-                                <p className="font-semibold">${order.total_amount.toFixed(2)}</p>
+                                <p className="font-semibold">₦{order.total_amount.toLocaleString()}</p>
                             </div>
                         </div>
                     </div>

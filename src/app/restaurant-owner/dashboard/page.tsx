@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth, useRequireRole } from '@/services/useAuth'
 import { useMenuItems } from '@/services/useMenuItems'
+import { useOrders } from '@/services/useOrders'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -10,21 +11,55 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-    Building2,
     Utensils,
     ShoppingBag,
     TrendingUp,
     Clock,
     Plus,
-    Edit,
     Settings,
-    ChevronRight
+    ChevronRight,
+    Bell,
+    CheckCircle2,
+    XCircle,
+    AlertCircle
 } from 'lucide-react'
 import type { Database } from '@/types/supabase'
-import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table'
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHeader,
+    TableHead,
+    TableRow
+} from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { statusColors } from '@/lib/utils'
 
 type Restaurant = Database['public']['Tables']['restaurants']['Row']
+type Order = Database['public']['Tables']['orders']['Row'] & {
+    user?: {
+        id: string | null
+        full_name: string | null
+        phone_number: string | null
+        email: string | null
+    } | null
+    items: {
+        id: string
+        name: string
+        price: number
+        quantity: number
+    }[]
+}
+
+const statusIcons = {
+    pending: AlertCircle,
+    payment_pending: Clock,
+    confirmed: CheckCircle2,
+    preparing: Utensils,
+    ready: Bell,
+    completed: CheckCircle2,
+    cancelled: XCircle,
+}
 
 export default function RestaurantOwnerDashboard() {
     const router = useRouter()
@@ -40,10 +75,55 @@ export default function RestaurantOwnerDashboard() {
     }, [userRestaurants, selectedRestaurant])
 
     // Fetch menu items for the selected restaurant
-    const { menuItems, isLoading: isMenuLoading } = useMenuItems({
+    const { menuItems } = useMenuItems({
         restaurantId: selectedRestaurant?.id,
         isAvailable: undefined, // Show all items
     })
+
+    // Fetch orders for the selected restaurant
+    const {
+        orders: recentOrders,
+        updateOrderStatus: updateStatus,
+        refetch: refetchOrders
+    } = useOrders({
+        restaurantId: selectedRestaurant?.id,
+        sortBy: 'created_at',
+        sortOrder: 'desc'
+    })
+
+    // Group orders by status
+    const ordersByStatus = recentOrders?.reduce((acc, order) => {
+        const status = order.order_status
+        if (!acc[status]) {
+            acc[status] = []
+        }
+        acc[status].push(order)
+        return acc
+    }, {} as Record<string, Order[]>) || {}
+
+    const updateOrderStatus = async (orderId: string, newStatus: string) => {
+        try {
+            await updateStatus.mutateAsync({
+                id: orderId,
+                order_status: newStatus
+            })
+            toast.success('Order status updated successfully')
+            refetchOrders()
+        } catch (error) {
+            console.error('Error updating order status:', error)
+            toast.error('Failed to update order status')
+        }
+    }
+
+    // Play notification sound for new orders
+    useEffect(() => {
+        const audio = new Audio('/notification.mp3') // Add this sound file to public folder
+        const pendingOrders = ordersByStatus['pending'] || []
+
+        if (pendingOrders.length > 0) {
+            audio.play().catch(e => console.log('Audio play failed:', e))
+        }
+    }, [ordersByStatus['pending']?.length])
 
     if (isLoading || isAuthChecking) {
         return (
@@ -89,6 +169,22 @@ export default function RestaurantOwnerDashboard() {
         )
     }
 
+    const getTotalRevenue = () => {
+        return recentOrders?.reduce((sum, order) => {
+            if (order.order_status !== 'cancelled') {
+                return sum + Number(order.total_amount)
+            }
+            return sum
+        }, 0) || 0
+    }
+
+    const getOrdersCount = (status?: string) => {
+        if (!status) {
+            return recentOrders?.length || 0
+        }
+        return ordersByStatus[status]?.length || 0
+    }
+
     return (
         <div className="space-y-6 p-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -121,6 +217,46 @@ export default function RestaurantOwnerDashboard() {
 
             {selectedRestaurant && (
                 <>
+                    {/* Quick Actions */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <Button
+                            variant="outline"
+                            className="h-24 flex flex-col items-center justify-center gap-2"
+                            onClick={() => router.push('/restaurant-owner/orders')}
+                        >
+                            <ShoppingBag className="h-6 w-6" />
+                            <span>View All Orders</span>
+                            {getOrdersCount('pending') > 0 && (
+                                <Badge variant="destructive">{getOrdersCount('pending')} New</Badge>
+                            )}
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="h-24 flex flex-col items-center justify-center gap-2"
+                            onClick={() => router.push('/restaurant-owner/menu')}
+                        >
+                            <Utensils className="h-6 w-6" />
+                            <span>Manage Menu</span>
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="h-24 flex flex-col items-center justify-center gap-2"
+                            onClick={() => router.push('/restaurant-owner/restaurants/[id]/edit'.replace('[id]', selectedRestaurant.id))}
+                        >
+                            <Settings className="h-6 w-6" />
+                            <span>Restaurant Settings</span>
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="h-24 flex flex-col items-center justify-center gap-2"
+                            onClick={() => router.push('/restaurant-owner/analytics')}
+                        >
+                            <TrendingUp className="h-6 w-6" />
+                            <span>View Analytics</span>
+                        </Button>
+                    </div>
+
+                    {/* Stats Overview */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -128,21 +264,21 @@ export default function RestaurantOwnerDashboard() {
                                 <ShoppingBag className="h-4 w-4 text-muted-foreground" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold">0</div>
+                                <div className="text-2xl font-bold">{getOrdersCount()}</div>
                                 <p className="text-xs text-muted-foreground">
-                                    +0% from last month
+                                    {getOrdersCount('pending')} pending orders
                                 </p>
                             </CardContent>
                         </Card>
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">Revenue</CardTitle>
+                                <CardTitle className="text-sm font-medium">Today&apos;s Revenue</CardTitle>
                                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold">$0.00</div>
+                                <div className="text-2xl font-bold">₦{getTotalRevenue().toLocaleString()}</div>
                                 <p className="text-xs text-muted-foreground">
-                                    +0% from last month
+                                    From {getOrdersCount('completed')} completed orders
                                 </p>
                             </CardContent>
                         </Card>
@@ -152,288 +288,150 @@ export default function RestaurantOwnerDashboard() {
                                 <Utensils className="h-4 w-4 text-muted-foreground" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold">0</div>
+                                <div className="text-2xl font-bold">{menuItems?.length || 0}</div>
                                 <p className="text-xs text-muted-foreground">
-                                    0 active items
+                                    Active menu items
                                 </p>
                             </CardContent>
                         </Card>
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">Avg. Preparation Time</CardTitle>
+                                <CardTitle className="text-sm font-medium">Average Prep Time</CardTitle>
                                 <Clock className="h-4 w-4 text-muted-foreground" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold">0 min</div>
+                                <div className="text-2xl font-bold">{selectedRestaurant.average_preparation_time}min</div>
                                 <p className="text-xs text-muted-foreground">
-                                    Based on recent orders
+                                    Average order preparation time
                                 </p>
                             </CardContent>
                         </Card>
                     </div>
 
-                    <Tabs defaultValue="overview" className="space-y-4">
-                        <TabsList>
-                            <TabsTrigger value="overview">Overview</TabsTrigger>
-                            <TabsTrigger value="menu">Menu</TabsTrigger>
-                            <TabsTrigger value="orders">Orders</TabsTrigger>
-                            <TabsTrigger value="settings">Settings</TabsTrigger>
-                        </TabsList>
-
-                        <TabsContent value="overview" className="space-y-4">
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Restaurant Information</CardTitle>
-                                    <CardDescription>
-                                        Basic information about your restaurant
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <h3 className="text-sm font-medium mb-1">Name</h3>
-                                            <p>{selectedRestaurant.name}</p>
-                                        </div>
-                                        <div>
-                                            <h3 className="text-sm font-medium mb-1">Status</h3>
-                                            <p>{selectedRestaurant.is_active ? 'Active' : 'Inactive'}</p>
-                                        </div>
-                                        <div>
-                                            <h3 className="text-sm font-medium mb-1">Description</h3>
-                                            <p className="text-sm text-muted-foreground">
-                                                {selectedRestaurant.description || 'No description provided'}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                                <CardFooter>
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => router.push(`/restaurant-owner/restaurants/${selectedRestaurant.id}/edit`)}
-                                    >
-                                        <Edit className="mr-2 h-4 w-4" />
-                                        Edit Information
-                                    </Button>
-                                </CardFooter>
-                            </Card>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle>Quick Actions</CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="space-y-2">
-                                        <Button
-                                            variant="outline"
-                                            className="w-full justify-between"
-                                            onClick={() => router.push(`/restaurant-owner/restaurants/${selectedRestaurant.id}/menu/new`)}
-                                        >
-                                            <div className="flex items-center">
-                                                <Plus className="mr-2 h-4 w-4" />
-                                                Add Menu Item
-                                            </div>
-                                            <ChevronRight className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            className="w-full justify-between"
-                                            onClick={() => router.push(`/restaurant-owner/restaurants/${selectedRestaurant.id}/orders`)}
-                                        >
-                                            <div className="flex items-center">
-                                                <ShoppingBag className="mr-2 h-4 w-4" />
-                                                View Orders
-                                            </div>
-                                            <ChevronRight className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            className="w-full justify-between"
-                                            onClick={() => router.push(`/restaurant-owner/restaurants/${selectedRestaurant.id}/settings`)}
-                                        >
-                                            <div className="flex items-center">
-                                                <Settings className="mr-2 h-4 w-4" />
-                                                Restaurant Settings
-                                            </div>
-                                            <ChevronRight className="h-4 w-4" />
-                                        </Button>
-                                    </CardContent>
-                                </Card>
-
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle>Recent Activity</CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <p className="text-center text-muted-foreground py-8">
-                                            No recent activity to display
-                                        </p>
-                                    </CardContent>
-                                </Card>
+                    {/* Recent Orders */}
+                    <Card>
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <CardTitle>Recent Orders</CardTitle>
+                                <Button variant="outline" onClick={() => router.push('/restaurant-owner/orders')}>
+                                    View All
+                                    <ChevronRight className="ml-2 h-4 w-4" />
+                                </Button>
                             </div>
-                        </TabsContent>
-
-                        <TabsContent value="menu" className="space-y-4">
-                            <Card>
-                                <CardHeader className="flex flex-row items-center justify-between">
-                                    <div>
-                                        <CardTitle>Menu Items</CardTitle>
-                                        <CardDescription>
-                                            Manage your restaurant&apos;s menu
-                                        </CardDescription>
-                                    </div>
-                                    <Button onClick={() => router.push(`/restaurant-owner/restaurants/${selectedRestaurant.id}/menu/new`)}>
-                                        <Plus className="mr-2 h-4 w-4" />
-                                        Add Item
-                                    </Button>
-                                </CardHeader>
-                                <CardContent>
-                                    {isMenuLoading ? (
-                                        <div className="text-center py-8">Loading...</div>
-                                    ) : menuItems?.length === 0 ? (
-                                        <div className="text-center py-8">
-                                            <p className="text-muted-foreground">
-                                                No menu items found. Add your first menu item to get started.
-                                            </p>
-                                            <Button
-                                                variant="outline"
-                                                className="mt-4"
-                                                onClick={() => router.push(`/restaurant-owner/restaurants/${selectedRestaurant.id}/menu/new`)}
-                                            >
-                                                <Plus className="mr-2 h-4 w-4" />
-                                                Add First Menu Item
-                                            </Button>
-                                        </div>
-                                    ) : (
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableCell>Name</TableCell>
-                                                    <TableCell>Category</TableCell>
-                                                    <TableCell>Price</TableCell>
-                                                    <TableCell>Status</TableCell>
-                                                    <TableCell className="text-right">Actions</TableCell>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {menuItems?.slice(0, 5).map((item) => (
-                                                    <TableRow key={item.id}>
-                                                        <TableCell className="font-medium">
-                                                            {item.name}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {item.menu_categories?.name || 'Uncategorized'}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            ₦{item.price.toLocaleString()}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Badge variant={item.is_available ? "default" : "secondary"}>
-                                                                {item.is_available ? 'Available' : 'Unavailable'}
-                                                            </Badge>
-                                                        </TableCell>
-                                                        <TableCell className="text-right">
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                onClick={() => router.push(`/restaurant-owner/restaurants/${selectedRestaurant.id}/menu/${item.id}/edit`)}
-                                                            >
-                                                                <Edit className="h-4 w-4" />
-                                                            </Button>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    )}
-                                    {menuItems && menuItems.length > 5 && (
-                                        <div className="mt-4 text-center">
-                                            <Button
-                                                variant="outline"
-                                                onClick={() => router.push(`/restaurant-owner/restaurants/${selectedRestaurant.id}/menu`)}
-                                            >
-                                                View All Menu Items
-                                            </Button>
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
-                        </TabsContent>
-
-                        <TabsContent value="orders" className="space-y-4">
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Recent Orders</CardTitle>
-                                    <CardDescription>
-                                        View and manage your restaurant&apos;s orders
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <p className="text-center text-muted-foreground py-8">
-                                        No orders found
-                                    </p>
-                                </CardContent>
-                                <CardFooter>
-                                    <Button
-                                        variant="outline"
-                                        className="w-full"
-                                        onClick={() => router.push(`/restaurant-owner/restaurants/${selectedRestaurant.id}/orders`)}
-                                    >
-                                        View All Orders
-                                    </Button>
-                                </CardFooter>
-                            </Card>
-                        </TabsContent>
-
-                        <TabsContent value="settings" className="space-y-4">
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Restaurant Settings</CardTitle>
-                                    <CardDescription>
-                                        Manage your restaurant&apos;s settings and preferences
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <Button
-                                        variant="outline"
-                                        className="w-full justify-between"
-                                        onClick={() => router.push(`/restaurant-owner/restaurants/${selectedRestaurant.id}/edit`)}
-                                    >
-                                        <div className="flex items-center">
-                                            <Building2 className="mr-2 h-4 w-4" />
-                                            Basic Information
-                                        </div>
-                                        <ChevronRight className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        className="w-full justify-between"
-                                        onClick={() => router.push(`/restaurant-owner/restaurants/${selectedRestaurant.id}/hours`)}
-                                    >
-                                        <div className="flex items-center">
-                                            <Clock className="mr-2 h-4 w-4" />
-                                            Operating Hours
-                                        </div>
-                                        <ChevronRight className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        className="w-full justify-between"
-                                        onClick={() => {
-                                            toast.success(`Restaurant ${selectedRestaurant.is_active ? 'deactivated' : 'activated'}`)
-                                        }}
-                                    >
-                                        <div className="flex items-center">
-                                            <Settings className="mr-2 h-4 w-4" />
-                                            {selectedRestaurant.is_active ? 'Deactivate Restaurant' : 'Activate Restaurant'}
-                                        </div>
-                                        <ChevronRight className="h-4 w-4" />
-                                    </Button>
-                                </CardContent>
-                            </Card>
-                        </TabsContent>
-                    </Tabs>
+                            <Tabs defaultValue="all" className="w-full">
+                                <TabsList>
+                                    <TabsTrigger value="all">
+                                        All
+                                        <Badge variant="secondary" className="ml-2">{getOrdersCount()}</Badge>
+                                    </TabsTrigger>
+                                    <TabsTrigger value="pending">
+                                        Pending
+                                        <Badge variant="destructive" className="ml-2">{getOrdersCount('pending')}</Badge>
+                                    </TabsTrigger>
+                                    <TabsTrigger value="confirmed">
+                                        Confirmed
+                                        <Badge variant="secondary" className="ml-2">{getOrdersCount('confirmed')}</Badge>
+                                    </TabsTrigger>
+                                    <TabsTrigger value="preparing">
+                                        Preparing
+                                        <Badge variant="secondary" className="ml-2">{getOrdersCount('preparing')}</Badge>
+                                    </TabsTrigger>
+                                </TabsList>
+                                <TabsContent value="all">
+                                    <OrdersTable
+                                        orders={recentOrders?.slice(0, 5) || []}
+                                        updateStatus={updateOrderStatus}
+                                        onViewOrder={(id) => router.push(`/restaurant-owner/orders/${id}`)}
+                                    />
+                                </TabsContent>
+                                <TabsContent value="pending">
+                                    <OrdersTable
+                                        orders={ordersByStatus['pending']?.slice(0, 5) || []}
+                                        updateStatus={updateOrderStatus}
+                                        onViewOrder={(id) => router.push(`/restaurant-owner/orders/${id}`)}
+                                    />
+                                </TabsContent>
+                                <TabsContent value="confirmed">
+                                    <OrdersTable
+                                        orders={ordersByStatus['confirmed']?.slice(0, 5) || []}
+                                        updateStatus={updateOrderStatus}
+                                        onViewOrder={(id) => router.push(`/restaurant-owner/orders/${id}`)}
+                                    />
+                                </TabsContent>
+                                <TabsContent value="preparing">
+                                    <OrdersTable
+                                        orders={ordersByStatus['preparing']?.slice(0, 5) || []}
+                                        updateStatus={updateOrderStatus}
+                                        onViewOrder={(id) => router.push(`/restaurant-owner/orders/${id}`)}
+                                    />
+                                </TabsContent>
+                            </Tabs>
+                        </CardHeader>
+                    </Card>
                 </>
             )}
+        </div>
+    )
+}
+
+function OrdersTable({ orders, onViewOrder }: {
+    orders: Order[]
+    updateStatus: (id: string, status: string) => Promise<void>
+    onViewOrder: (id: string) => void
+}) {
+    return (
+        <div className="rounded-md border">
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Order ID</TableHead>
+                        <TableHead>Customer</TableHead>
+                        <TableHead>Items</TableHead>
+                        <TableHead>Total</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {orders.map((order) => {
+                        const StatusIcon = statusIcons[order.order_status as keyof typeof statusIcons]
+                        return (
+                            <TableRow key={order.id}>
+                                <TableCell className="font-medium">{order.id.slice(0, 8)}</TableCell>
+                                <TableCell>{order.user?.full_name || 'N/A'}</TableCell>
+                                <TableCell>{order.items?.length || 0} items</TableCell>
+                                <TableCell>₦{order.total_amount.toLocaleString()}</TableCell>
+                                <TableCell>
+                                    <div className="flex items-center gap-2">
+                                        <StatusIcon className="h-4 w-4" />
+                                        <Badge className={statusColors[order.order_status as keyof typeof statusColors]}>
+                                            {order.order_status}
+                                        </Badge>
+                                    </div>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <div className="flex justify-end gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => onViewOrder(order.id)}
+                                        >
+                                            View Details
+                                        </Button>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        )
+                    })}
+                    {orders.length === 0 && (
+                        <TableRow>
+                            <TableCell colSpan={6} className="text-center py-4">
+                                No orders found
+                            </TableCell>
+                        </TableRow>
+                    )}
+                </TableBody>
+            </Table>
         </div>
     )
 } 

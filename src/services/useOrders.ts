@@ -5,7 +5,21 @@ import type { Database } from '@/types/supabase'
 import { PostgrestError } from '@supabase/supabase-js'
 import { useTravelTimes } from './useTravelTimes'
 
-type Order = Database['public']['Tables']['orders']['Row']
+type Order = Database['public']['Tables']['orders']['Row'] & {
+    user?: {
+        id: string
+        full_name: string
+        phone_number: string
+        email: string
+    }
+    items?: Array<{
+        id: string
+        name: string
+        price: number
+        quantity: number
+        restaurantId: string
+    }>
+}
 type OrderInsert = Database['public']['Tables']['orders']['Insert']
 type OrderUpdate = Database['public']['Tables']['orders']['Update']
 type OrderItem = Database['public']['Tables']['order_items']['Row']
@@ -20,64 +34,77 @@ type OrderFilters = {
     locationId?: string
     startDate?: string
     endDate?: string
-    sortBy?: 'created_at' | 'total_amount' | 'estimated_delivery_time'
+    sortBy?: string
     sortOrder?: 'asc' | 'desc'
+    orderId?: string
 }
 
-export function useOrders(filters?: OrderFilters) {
+export function useOrders(filters: OrderFilters = {}) {
     const supabase = createClientComponentClient<Database>()
     const queryClient = useQueryClient()
     const { getEstimatedDeliveryTime } = useTravelTimes()
     const defaultFilters: OrderFilters = {
         searchTerm: '',
-        userId: undefined,
-        restaurantId: undefined,
-        riderId: undefined,
-        status: undefined,
+        userId: filters.userId,
+        restaurantId: filters.restaurantId,
+        riderId: filters.riderId,
+        status: filters.status,
         locationId: undefined,
         startDate: undefined,
         endDate: undefined,
-        sortBy: 'created_at',
-        sortOrder: 'desc',
-        ...filters
+        sortBy: filters.sortBy || 'created_at',
+        sortOrder: filters.sortOrder || 'desc',
+        orderId: filters.orderId
     }
 
-    // Fetch orders with related data and filtering
-    const {
-        data: orders,
-        isLoading,
-        error: fetchError,
-        refetch
-    } = useQuery({
-        queryKey: ['orders', defaultFilters],
-        queryFn: async () => {
-            // Try to get from localStorage first
-            const cacheKey = `orders-${JSON.stringify(defaultFilters)}`;
-            const cachedData = typeof window !== 'undefined' ? localStorage.getItem(cacheKey) : null;
-            if (cachedData) {
-                try {
-                    const { data, timestamp } = JSON.parse(cachedData);
-                    const isStale = Date.now() - timestamp > 5 * 60 * 1000; // 5 minutes
+    const fetchOrders = async () => {
+        try {
+            // If orderId is provided, fetch a single order
+            if (defaultFilters.orderId) {
+                let query = supabase
+                    .from('orders')
+                    .select(`
+                        *,
+                        user:users!orders_user_id_fkey(
+                            id,
+                            full_name,
+                            phone_number,
+                            email
+                        )
+                    `)
+                    .eq('id', defaultFilters.orderId)
 
-                    if (!isStale) {
-                        console.log(`Using cached orders data`);
-                        return data;
-                    }
-                } catch (e) {
-                    console.error('Error parsing cached orders data:', e);
+                if (defaultFilters.restaurantId) {
+                    console.log('Applying restaurant filter:', defaultFilters.restaurantId)
+                    query = query.eq('restaurant_id', defaultFilters.restaurantId)
                 }
+
+                const { data, error } = await query.single()
+
+                if (error) {
+                    console.error('Error fetching order:', error)
+                    throw error
+                }
+
+                if (!data) {
+                    console.log(`No order found with ID: ${defaultFilters.orderId}`)
+                    return []
+                }
+
+                return [data]
             }
 
-            console.log(`Fetching orders with filters:`, defaultFilters);
+            // Existing code for fetching multiple orders
             let query = supabase
                 .from('orders')
                 .select(`
                     *,
-                    user:user_id(id, full_name, phone_number, email),
-                    restaurant:restaurant_id(id, name, address, phone_number),
-                    delivery_rider:delivery_rider_id(id, full_name, phone_number),
-                    delivery_location:delivery_location_id(id, name, address),
-                    order_items(*)
+                    user:users!orders_user_id_fkey(
+                        id,
+                        full_name,
+                        phone_number,
+                        email
+                    )
                 `)
 
             // Apply filters
@@ -90,7 +117,7 @@ export function useOrders(filters?: OrderFilters) {
             }
 
             if (defaultFilters.riderId) {
-                query = query.eq('delivery_rider_id', defaultFilters.riderId)
+                query = query.eq('rider_id', defaultFilters.riderId)
             }
 
             if (defaultFilters.status) {
@@ -123,23 +150,37 @@ export function useOrders(filters?: OrderFilters) {
 
             const { data, error } = await query
 
-            if (error) throw error
+            if (error) {
+                console.error('Error fetching orders:', error)
+                throw error
+            }
 
-            // Save to localStorage with timestamp
-            if (typeof window !== 'undefined') {
-                localStorage.setItem(cacheKey, JSON.stringify({
-                    data,
-                    timestamp: Date.now()
-                }));
+            if (!data || data.length === 0) {
+                console.log('No orders found for restaurant:', defaultFilters.restaurantId)
+                return []
             }
 
             return data
-        },
+        } catch (error) {
+            console.error('Error in fetchOrders:', error)
+            throw error
+        }
+    }
+
+    // Fetch orders with related data and filtering
+    const {
+        data: orders,
+        isLoading,
+        error: fetchError,
+        refetch
+    } = useQuery({
+        queryKey: ['orders', defaultFilters],
+        queryFn: fetchOrders,
         staleTime: 1000 * 60 * 5, // 5 minutes
-        refetchOnWindowFocus: false,
-        refetchOnMount: false,
-        refetchOnReconnect: false,
-        retry: 1,
+        refetchOnWindowFocus: true, // Enable automatic refetch on window focus
+        refetchOnMount: true, // Enable refetch on mount
+        refetchOnReconnect: true, // Enable refetch on reconnect
+        retry: 2, // Increase retry attempts
         gcTime: 1000 * 60 * 10, // 10 minutes
     })
 
@@ -167,7 +208,7 @@ export function useOrders(filters?: OrderFilters) {
             .from('orders')
             .select(`
                 *,
-                user:user_id(id, full_name, phone_number, email),
+                user:users!orders_user_id_fkey(*),
                 restaurant:restaurant_id(id, name, address, phone_number),
                 delivery_rider:delivery_rider_id(id, full_name, phone_number),
                 delivery_location:delivery_location_id(id, name, address),
@@ -240,11 +281,11 @@ export function useOrders(filters?: OrderFilters) {
     })
 
     // Update order status
-    const updateOrderStatus = useMutation<Order, PostgrestError, { id: string, status: string }>({
-        mutationFn: async ({ id, status }) => {
+    const updateOrderStatus = useMutation<Order, PostgrestError, { id: string, order_status: string }>({
+        mutationFn: async ({ id, order_status }) => {
             const { data, error } = await supabase
                 .from('orders')
-                .update({ order_status: status })
+                .update({ order_status: order_status })
                 .eq('id', id)
                 .select()
                 .single()
@@ -510,7 +551,7 @@ export function useOrders(filters?: OrderFilters) {
     return {
         orders,
         isLoading,
-        fetchError,
+        error: fetchError,
         getOrderById,
         createOrder,
         updateOrder,

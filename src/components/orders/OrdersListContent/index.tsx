@@ -114,7 +114,7 @@ export default function OrdersListContent({
     const {
         orders,
         isLoading,
-        fetchError,
+        error: fetchError,
         updateOrderStatus,
         refetch
     } = useOrders({
@@ -137,7 +137,7 @@ export default function OrdersListContent({
 
     const handleUpdateStatus = async (id: string, status: string) => {
         try {
-            await updateOrderStatus.mutateAsync({ id, status })
+            await updateOrderStatus.mutateAsync({ id, order_status: status })
             toast.success(`Order status updated to ${status}`)
         } catch (error) {
             toast.error("Failed to update order status")

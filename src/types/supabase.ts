@@ -386,6 +386,13 @@ export type Database = {
           delivery_rider_id: string | null
           estimated_delivery_time: string | null
           id: string
+          items: Array<{
+            id: string
+            name: string
+            price: number
+            quantity: number
+            restaurantId: string
+          }>
           order_group_id: string | null
           order_status: string
           restaurant_id: string

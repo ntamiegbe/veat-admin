@@ -1,10 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useAuth, useRequireRole } from '@/hooks/useAuth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { format } from 'date-fns'
 import {
     Table,
@@ -14,141 +13,96 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table'
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
+import { Eye, ShoppingBag, ArrowLeft, Clock, Search } from 'lucide-react'
+import { useOrders } from '@/services/useOrders'
+import { useRouter } from 'next/navigation'
+import { statusColors } from '@/lib/utils'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Input } from '@/components/ui/input'
 import { OrderDetails } from '@/components/restaurant/OrderDetails'
-import { Eye } from 'lucide-react'
+import { useOrderRealtime } from '@/hooks/useOrderRealtime'
 
 type Order = {
     id: string
-    created_at: string
+    created_at: string | null
+    updated_at: string | null
     order_status: string
     total_amount: number
     delivery_fee: number
     delivery_address: string
-    delivery_instructions?: string
-    estimated_delivery_time?: string
+    delivery_instructions: string | null
+    estimated_delivery_time: string | null
+    actual_delivery_time: string | null
     user: {
-        full_name: string
-        phone_number: string
-    }
-    order_items: {
+        id: string | null
+        full_name: string | null
+        phone_number: string | null
+        email: string | null
+    } | null
+    items?: Array<{
         id: string
+        name: string
+        price: number
         quantity: number
-        unit_price: number
-        special_instructions?: string
-        menu_item: {
-            name: string
-        }
-    }[]
+        restaurantId: string
+    }>
 }
 
-const statusColors = {
-    pending: 'bg-yellow-100 text-yellow-800',
-    confirmed: 'bg-blue-100 text-blue-800',
-    preparing: 'bg-purple-100 text-purple-800',
-    ready_for_pickup: 'bg-indigo-100 text-indigo-800',
-    out_for_delivery: 'bg-orange-100 text-orange-800',
-    delivered: 'bg-green-100 text-green-800',
-    cancelled: 'bg-red-100 text-red-800',
-}
+type Priority = 'high' | 'normal'
 
 export default function OrdersPage() {
     useRequireRole('restaurant_owner')
-    const { currentUser } = useAuth()
-    const [orders, setOrders] = useState<Order[]>([])
-    const [loading, setLoading] = useState(true)
+    const { userRestaurants, isLoading: isAuthLoading } = useAuth()
     const [statusFilter, setStatusFilter] = useState<string>('all')
+    const [searchTerm, setSearchTerm] = useState('')
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
-    const supabase = createClientComponentClient()
     const { toast } = useToast()
+    const router = useRouter()
 
-    useEffect(() => {
-        if (!currentUser?.id) return
-        loadOrders()
-    }, [currentUser, statusFilter])
+    const restaurantId = userRestaurants?.[0]?.id
 
-    const loadOrders = async () => {
-        try {
-            const { data: restaurant } = await supabase
-                .from('restaurants')
-                .select('id')
-                .eq('owner_id', currentUser?.id)
-                .single()
+    // Enable real-time updates
+    useOrderRealtime(restaurantId)
 
-            if (!restaurant) {
-                toast({
-                    title: 'Error',
-                    description: 'Restaurant not found',
-                    variant: 'destructive',
-                })
-                return
-            }
+    const {
+        orders: allOrders,
+        isLoading: isOrdersLoading,
+        updateOrderStatus: updateStatus,
+        refetch: refetchOrders,
+        error: fetchError
+    } = useOrders({
+        restaurantId,
+        sortBy: 'created_at',
+        sortOrder: 'desc'
+    })
 
-            let query = supabase
-                .from('orders')
-                .select(`
-                    *,
-                    user:user_id (
-                        full_name,
-                        phone_number
-                    ),
-                    order_items (
-                        id,
-                        quantity,
-                        unit_price,
-                        special_instructions,
-                        menu_item:menu_item_id (
-                            name
-                        )
-                    )
-                `)
-                .eq('restaurant_id', restaurant.id)
-                .order('created_at', { ascending: false })
+    // Filter orders based on status and search term
+    const filteredOrders = allOrders?.filter(order => {
+        const matchesStatus = statusFilter === 'all' || order.order_status === statusFilter
+        const matchesSearch = !searchTerm ||
+            order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            order.user?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            order.delivery_address.toLowerCase().includes(searchTerm.toLowerCase())
 
-            if (statusFilter !== 'all') {
-                query = query.eq('order_status', statusFilter)
-            }
-
-            const { data, error } = await query
-
-            if (error) throw error
-            setOrders(data)
-        } catch (error) {
-            console.error('Error loading orders:', error)
-            toast({
-                title: 'Error',
-                description: 'Failed to load orders',
-                variant: 'destructive',
-            })
-        } finally {
-            setLoading(false)
-        }
-    }
+        return matchesStatus && matchesSearch
+    }) || []
 
     const updateOrderStatus = async (orderId: string, newStatus: string) => {
         try {
-            const { error } = await supabase
-                .from('orders')
-                .update({ order_status: newStatus })
-                .eq('id', orderId)
-
-            if (error) throw error
+            await updateStatus.mutateAsync({
+                id: orderId,
+                order_status: newStatus
+            })
 
             toast({
                 title: 'Success',
                 description: 'Order status updated successfully',
             })
 
-            loadOrders()
+            refetchOrders()
         } catch (error) {
             console.error('Error updating order status:', error)
             toast({
@@ -159,119 +113,282 @@ export default function OrdersPage() {
         }
     }
 
-    if (loading) {
-        return <Skeleton className="w-full h-[200px]" />
+    // Group orders by priority
+    const groupedOrders = filteredOrders.reduce((groups, order) => {
+        let priority: Priority = 'normal'
+        const createdTime = new Date(order.created_at || Date.now()).getTime()
+        const waitingTime = (Date.now() - createdTime) / 1000 / 60 // minutes
+
+        if (order.order_status === 'pending' && waitingTime > 5) {
+            priority = 'high'
+        } else if (order.order_status === 'confirmed' && waitingTime > 10) {
+            priority = 'high'
+        } else if (order.order_status === 'preparing' && waitingTime > 20) {
+            priority = 'high'
+        }
+
+        if (!groups[priority]) {
+            groups[priority] = []
+        }
+        groups[priority].push(order)
+        return groups
+    }, { high: [] as Order[], normal: [] as Order[] })
+
+    // Show loading state while auth or orders are loading
+    if (isAuthLoading || isOrdersLoading) {
+        return (
+            <div className="container mx-auto py-10 px-4">
+                <Card>
+                    <CardHeader>
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div>
+                                <Skeleton className="h-8 w-48 mb-2" />
+                                <Skeleton className="h-4 w-64" />
+                            </div>
+                            <Skeleton className="h-10 w-[180px]" />
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="rounded-md border">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Order ID</TableHead>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Customer</TableHead>
+                                        <TableHead>Items</TableHead>
+                                        <TableHead>Total</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {[1, 2, 3, 4, 5].map((i) => (
+                                        <TableRow key={i}>
+                                            <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                                            <TableCell><Skeleton className="h-6 w-24" /></TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    <Skeleton className="h-9 w-[120px]" />
+                                                    <Skeleton className="h-9 w-9" />
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        )
+    }
+
+    // Show error if no restaurant is found
+    if (!restaurantId) {
+        return (
+            <div className="container mx-auto py-10">
+                <Card>
+                    <CardContent className="text-center py-10">
+                        <p className="text-red-500">No restaurant found. Please make sure you have a restaurant registered.</p>
+                    </CardContent>
+                </Card>
+            </div>
+        )
+    }
+
+    // Show error if orders failed to load
+    if (fetchError) {
+        return (
+            <div className="container mx-auto py-10">
+                <Card>
+                    <CardContent className="text-center py-10">
+                        <p className="text-red-500">Failed to load orders. Please try again later.</p>
+                        <p className="text-sm text-gray-500 mt-2">{(fetchError as Error).message}</p>
+                    </CardContent>
+                </Card>
+            </div>
+        )
     }
 
     return (
-        <div className="container mx-auto py-10">
+        <div className="container mx-auto py-10 px-4">
+            <div className="mb-6">
+                <Button
+                    variant="outline"
+                    onClick={() => router.push('/restaurant-owner/dashboard')}
+                    className="gap-2"
+                >
+                    <ArrowLeft className="h-4 w-4" />
+                    Back to Dashboard
+                </Button>
+            </div>
             <Card>
                 <CardHeader>
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div>
-                            <CardTitle>Orders</CardTitle>
-                            <CardDescription>Manage your restaurant orders</CardDescription>
+                            <CardTitle className="text-2xl">Orders</CardTitle>
+                            <CardDescription>Manage your restaurant&apos;s orders</CardDescription>
                         </div>
-                        <Select value={statusFilter} onValueChange={setStatusFilter}>
-                            <SelectTrigger className="w-[180px]">
-                                <SelectValue placeholder="Filter by status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Orders</SelectItem>
-                                <SelectItem value="pending">Pending</SelectItem>
-                                <SelectItem value="confirmed">Confirmed</SelectItem>
-                                <SelectItem value="preparing">Preparing</SelectItem>
-                                <SelectItem value="ready_for_pickup">Ready for Pickup</SelectItem>
-                                <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
-                                <SelectItem value="delivered">Delivered</SelectItem>
-                                <SelectItem value="cancelled">Cancelled</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        <div className="flex items-center gap-2">
+                            <div className="relative">
+                                <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                                <Input
+                                    placeholder="Search orders..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-8"
+                                />
+                            </div>
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Order Date</TableHead>
-                                <TableHead>Customer</TableHead>
-                                <TableHead>Items</TableHead>
-                                <TableHead>Total</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {orders.map((order) => (
-                                <TableRow key={order.id}>
-                                    <TableCell>
-                                        {format(new Date(order.created_at), 'MMM d, yyyy h:mm a')}
-                                    </TableCell>
-                                    <TableCell>
-                                        <div>
-                                            <div className="font-medium">{order.user.full_name}</div>
-                                            <div className="text-sm text-gray-500">{order.user.phone_number}</div>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="max-w-[300px]">
-                                            {order.order_items.map((item) => (
-                                                <div key={item.id} className="text-sm">
-                                                    {item.quantity}x {item.menu_item.name}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>${order.total_amount.toFixed(2)}</TableCell>
-                                    <TableCell>
-                                        <Badge className={statusColors[order.order_status as keyof typeof statusColors]}>
-                                            {order.order_status}
+                    <div className="mb-6">
+                        <Tabs defaultValue="all" value={statusFilter} onValueChange={setStatusFilter}>
+                            <TabsList className="w-full justify-start">
+                                <TabsTrigger value="all" className="gap-2">
+                                    <ShoppingBag className="h-4 w-4" />
+                                    All Orders
+                                    {filteredOrders.length > 0 && (
+                                        <Badge variant="secondary" className="ml-2">
+                                            {filteredOrders.length}
                                         </Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex items-center gap-2">
-                                            <Button
-                                                variant="outline"
-                                                size="icon"
-                                                onClick={() => setSelectedOrder(order)}
-                                            >
-                                                <Eye className="h-4 w-4" />
-                                            </Button>
-                                            <Select
-                                                value={order.order_status}
-                                                onValueChange={(value) => updateOrderStatus(order.id, value)}
-                                            >
-                                                <SelectTrigger className="w-[180px]">
-                                                    <SelectValue placeholder="Update status" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="confirmed">Confirm Order</SelectItem>
-                                                    <SelectItem value="preparing">Start Preparing</SelectItem>
-                                                    <SelectItem value="ready_for_pickup">Ready for Pickup</SelectItem>
-                                                    <SelectItem value="cancelled">Cancel Order</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                            {orders.length === 0 && (
+                                    )}
+                                </TabsTrigger>
+                                <TabsTrigger value="confirmed" className="gap-2">
+                                    Confirmed
+                                    {filteredOrders.filter(o => o.order_status === 'confirmed').length > 0 && (
+                                        <Badge variant="secondary" className="ml-2">
+                                            {filteredOrders.filter(o => o.order_status === 'confirmed').length}
+                                        </Badge>
+                                    )}
+                                </TabsTrigger>
+                                <TabsTrigger value="preparing" className="gap-2">
+                                    Preparing
+                                    {filteredOrders.filter(o => o.order_status === 'preparing').length > 0 && (
+                                        <Badge variant="secondary" className="ml-2">
+                                            {filteredOrders.filter(o => o.order_status === 'preparing').length}
+                                        </Badge>
+                                    )}
+                                </TabsTrigger>
+                                <TabsTrigger value="ready" className="gap-2">
+                                    Ready
+                                    {filteredOrders.filter(o => o.order_status === 'ready').length > 0 && (
+                                        <Badge variant="secondary" className="ml-2">
+                                            {filteredOrders.filter(o => o.order_status === 'ready').length}
+                                        </Badge>
+                                    )}
+                                </TabsTrigger>
+                            </TabsList>
+                        </Tabs>
+                    </div>
+
+                    {/* High Priority Orders */}
+                    {groupedOrders.high && groupedOrders.high.length > 0 && (
+                        <div className="mb-8">
+                            <h3 className="text-lg font-semibold text-red-600 mb-4">High Priority Orders</h3>
+                            <div className="rounded-md border border-red-200 bg-red-50">
+                                <Table>
+                                    <TableBody>
+                                        {groupedOrders.high.map((order) => (
+                                            <TableRow key={order.id} className="hover:bg-red-100">
+                                                <TableCell>{order.id}</TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center gap-2">
+                                                        <Clock className="h-4 w-4 text-red-600" />
+                                                        {format(new Date(order.created_at || ''), 'h:mm a')}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>{order.user?.full_name || 'N/A'}</TableCell>
+                                                <TableCell>{order.items?.length || 0} items</TableCell>
+                                                <TableCell>₦{order.total_amount.toLocaleString()}</TableCell>
+                                                <TableCell>
+                                                    <Badge className={statusColors[order.order_status as keyof typeof statusColors]}>
+                                                        {order.order_status}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <div className="flex justify-end gap-2">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => setSelectedOrder(order)}
+                                                        >
+                                                            <Eye className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Normal Priority Orders */}
+                    <div className="rounded-md border">
+                        <Table>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-10">
-                                        No orders found
-                                    </TableCell>
+                                    <TableHead>Order ID</TableHead>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Customer</TableHead>
+                                    <TableHead>Items</TableHead>
+                                    <TableHead>Total</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {groupedOrders.normal.map((order) => (
+                                    <TableRow key={order.id}>
+                                        <TableCell>{order.id}</TableCell>
+                                        <TableCell>
+                                            {format(new Date(order.created_at || ''), 'h:mm a')}
+                                        </TableCell>
+                                        <TableCell>{order.user?.full_name || 'N/A'}</TableCell>
+                                        <TableCell>{order.items?.length || 0} items</TableCell>
+                                        <TableCell>₦{order.total_amount.toLocaleString()}</TableCell>
+                                        <TableCell>
+                                            <Badge className={statusColors[order.order_status as keyof typeof statusColors]}>
+                                                {order.order_status}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="flex justify-end gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setSelectedOrder(order)}
+                                                >
+                                                    <Eye className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </CardContent>
             </Card>
 
+            {/* Order Details Modal */}
             {selectedOrder && (
                 <OrderDetails
                     order={selectedOrder}
                     open={!!selectedOrder}
                     onClose={() => setSelectedOrder(null)}
+                    onUpdateStatus={(status) => {
+                        updateOrderStatus(selectedOrder.id, status)
+                        setSelectedOrder(null)
+                    }}
                 />
             )}
         </div>
